@@ -37,8 +37,17 @@ export const translations = {
     // Reader Toolbar & Modal
     backToList: "واپس فہرست",
     page: "صفحہ",
+    ofPages: "میں سے",
+    totalPageLabel: "کُل صفحات",
     attachFile: "فائل منسلک کریں",
     download: "ڈاؤن لوڈ",
+    loadingPdf: "سورۃ کی پی ڈی ایف لوڈ ہو رہی ہے...",
+    renderingPage: "صفحہ رینڈر ہو رہا ہے...",
+    openInNewTab: "پی ڈی ایف نئے ٹیب میں کھولیں",
+    openMobileView: "موبائل ڈائریکٹ ویو",
+    swipeHint: "صفحہ تبدیل کرنے کے لیے دائیں/بائیں سوائپ کریں",
+    canvasEngine: "موبائل کینوس موڈ",
+    objectEngine: "نیٹو براؤزر موڈ",
     
     // Fallback Card
     pdfPendingMsg: "اس سورۃ کی PDF فائل ابھی پروجیکٹ کے فولڈر میں اپلوڈ ہونی ہے۔ آپ اپنے ڈیوائس سے لوکل PDF منتخب کر سکتے ہیں۔",
@@ -105,8 +114,17 @@ export const translations = {
     // Reader Toolbar & Modal
     backToList: "Back to List",
     page: "Page",
+    ofPages: "of",
+    totalPageLabel: "Total Pages",
     attachFile: "Attach File",
     download: "Download",
+    loadingPdf: "Loading Surah PDF...",
+    renderingPage: "Rendering Page...",
+    openInNewTab: "Open PDF in New Tab",
+    openMobileView: "Mobile Direct View",
+    swipeHint: "Swipe left/right to change pages",
+    canvasEngine: "Mobile Canvas Engine",
+    objectEngine: "Native Browser Engine",
     
     // Fallback Card
     pdfPendingMsg: "PDF file for this Surah is pending upload. You can attach a local PDF file from your device.",
