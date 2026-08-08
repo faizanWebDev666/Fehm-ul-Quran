@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import * as pdfjsLib from 'pdfjs-dist';
+// Import PDF.js worker locally via Vite ?url (bundled with app, no CDN dependency)
+import pdfjsWorkerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
 import { useQuran } from '../context/QuranContext';
 import { SURAHS_DATA } from '../data/quranData';
 import { translations } from '../utils/translations';
@@ -21,9 +23,13 @@ import {
   Eye
 } from 'lucide-react';
 
-// Configure PDF.js Worker using unpkg / cdnjs fallback
-if (pdfjsLib.GlobalWorkerOptions) {
-  pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version || '3.11.174'}/pdf.worker.min.js`;
+// Configure PDF.js Worker from LOCAL bundle (avoids CDN / version-mismatch failures on live sites)
+try {
+  if (pdfjsLib.GlobalWorkerOptions) {
+    pdfjsLib.GlobalWorkerOptions.workerSrc = pdfjsWorkerUrl;
+  }
+} catch (err) {
+  console.warn('[PDF.js] Local worker config failed, skipping:', err);
 }
 
 export const SurahPdfReader = ({ onOpenUploader }) => {
@@ -44,6 +50,9 @@ export const SurahPdfReader = ({ onOpenUploader }) => {
   const currentSurah = getSurahById(activeSurahId || 1);
   const pdfPath = surahPdfs[currentSurah.id] || currentSurah.pdfPath;
 
+  // Detect mobile screen once at mount
+  const isMobileScreen = typeof window !== 'undefined' && window.innerWidth < 768;
+
   // Reader States
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
@@ -52,7 +61,9 @@ export const SurahPdfReader = ({ onOpenUploader }) => {
   const [loadingProgress, setLoadingProgress] = useState(10);
   const [statusText, setStatusText] = useState(t.loadingPdf);
   const [pdfError, setPdfError] = useState(false);
-  const [viewEngine, setViewEngine] = useState('canvas'); // 'canvas' or 'object'
+  // MOBILE-FIRST: Default to native browser object engine on mobile screens
+  // Canvas mode (PDF.js) works well on desktop but is unreliable on mobile browsers
+  const [viewEngine, setViewEngine] = useState(isMobileScreen ? 'object' : 'canvas');
 
   // Canvas & PDF References
   const canvasRef = useRef(null);
@@ -430,11 +441,24 @@ export const SurahPdfReader = ({ onOpenUploader }) => {
             - Object engine runs independently of canvas errors
             - Canvas engine shows Fallback only on its own errors */}
         {viewEngine === 'object' ? (
-          <div className="w-full h-full flex flex-col items-center justify-center">
+          <div className="w-full h-full flex flex-col items-center justify-center gap-3">
+            {/* Mobile-friendly Direct Open CTA (always visible on native engine)
+                - On many mobile browsers embedded PDFs don't render inline
+                - Opening directly in a new tab / system viewer ALWAYS works  */}
+            <a
+              href={pdfPath}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="w-full sm:w-auto px-4 sm:px-5 py-2.5 rounded-xl bg-[#1B4332] hover:bg-[#0D3B33] text-white text-xs font-bold flex items-center justify-center space-x-2 rtl:space-x-reverse shadow-md transition-all"
+            >
+              <ExternalLink className="w-4 h-4 text-[#C9A66B]" />
+              <span>{isUrdu ? 'PDF براہ راست کھولیں (تجویز کردہ)' : t.openInNewTab + ' (Recommended)'}</span>
+            </a>
+
             <object
               data={`${pdfPath}#page=${currentPage}`}
               type="application/pdf"
-              className="w-full min-h-[550px] sm:min-h-[650px] rounded-xl shadow-inner bg-white"
+              className="w-full min-h-[500px] sm:min-h-[650px] rounded-xl shadow-inner bg-white"
               onError={(e) => {
                 const obj = e.currentTarget;
                 const children = obj?.children;
@@ -450,11 +474,12 @@ export const SurahPdfReader = ({ onOpenUploader }) => {
                 language={language}
                 t={t}
                 onTryNativeMode={() => setViewEngine('canvas')}
+                preferNewTab
               />
             </object>
-            <div className="mt-3 text-[11px] font-mono text-[#EDEAE0]/60 flex items-center space-x-1.5 rtl:space-x-reverse px-2 text-center">
+            <div className="mt-1 text-[11px] font-mono text-[#EDEAE0]/60 flex items-center space-x-1.5 rtl:space-x-reverse px-2 text-center">
               <Layers className="w-3.5 h-3.5 text-[#C9A66B]" />
-              <span>{t.objectEngine} • {t.openInNewTab}</span>
+              <span>{t.objectEngine}</span>
             </div>
           </div>
         ) : !pdfError ? (
@@ -479,6 +504,7 @@ export const SurahPdfReader = ({ onOpenUploader }) => {
               setPdfError(false);
               setViewEngine('object');
             }}
+            preferNewTab
           />
         )}
       </div>
@@ -488,7 +514,7 @@ export const SurahPdfReader = ({ onOpenUploader }) => {
 };
 
 // Fallback Card component when local/remote PDF is missing or fails
-const FallbackCard = ({ surah, pdfPath, onOpenUploader, language, t, onTryNativeMode }) => {
+const FallbackCard = ({ surah, pdfPath, onOpenUploader, language, t, onTryNativeMode, preferNewTab }) => {
   const isUrdu = language === 'urdu';
   return (
     <div
@@ -504,7 +530,11 @@ const FallbackCard = ({ surah, pdfPath, onOpenUploader, language, t, onTryNative
           {t.surahPrefix} {isUrdu ? surah.nameUrdu : surah.nameEnglish} ({surah.nameArabic})
         </h3>
         <p className="text-xs sm:text-sm text-gray-600 dark:text-gray-300 max-w-md mx-auto">
-          {t.pdfPendingMsg}
+          {preferNewTab
+            ? (isUrdu
+                ? 'پی ڈی ایف ملازم ان لائن نئے ٹیب/سسٹم ویور میں کھولیں۔ براؤزر کی درمیانی ویو عملی طور پر ہمیشہ کام کرتی ہے۔'
+                : 'Please open this PDF in a new tab / system viewer — it works reliably on all devices.')
+            : t.pdfPendingMsg}
         </p>
       </div>
 
@@ -513,33 +543,54 @@ const FallbackCard = ({ surah, pdfPath, onOpenUploader, language, t, onTryNative
       </div>
 
       <div className="flex flex-wrap items-center justify-center gap-3 pt-2">
+        {/* When preferNewTab is true, Open in New Tab becomes the PRIMARY green action (guaranteed to work on mobile) */}
+        {preferNewTab ? (
+          <a
+            href={pdfPath}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="px-5 py-2.5 rounded-xl bg-[#1B4332] hover:bg-[#0D3B33] text-white font-bold text-xs shadow-md inline-flex items-center space-x-2 rtl:space-x-reverse transition-all"
+          >
+            <ExternalLink className="w-4 h-4 text-[#C9A66B]" />
+            <span>{t.openInNewTab}</span>
+          </a>
+        ) : null}
+
         {onTryNativeMode && (
           <button
             onClick={onTryNativeMode}
             className="px-5 py-2.5 rounded-xl bg-[#B0693F] hover:bg-[#965732] text-white font-bold text-xs shadow-md inline-flex items-center space-x-2 rtl:space-x-reverse transition-all"
           >
             <Eye className="w-4 h-4" />
-            <span>{isUrdu ? 'براؤزر موڈ میں کوشش کریں' : t.objectEngine}</span>
+            <span>{isUrdu ? 'دوسرا موڈ آزمائیں' : (preferNewTab ? 'Try other mode' : t.objectEngine)}</span>
           </button>
         )}
 
+        {/* When preferNewTab=false, Select PDF is the green primary action (default fallback for missing uploads) */}
         <button
           onClick={onOpenUploader}
-          className="px-5 py-2.5 rounded-xl bg-[#1B4332] hover:bg-[#0D3B33] text-white font-bold text-xs shadow-md inline-flex items-center space-x-2 rtl:space-x-reverse transition-all"
+          className={`px-5 py-2.5 rounded-xl font-bold text-xs shadow-md inline-flex items-center space-x-2 rtl:space-x-reverse transition-all ${
+            preferNewTab
+              ? 'bg-[#C9A66B]/20 hover:bg-[#C9A66B]/30 text-[#B0693F] dark:text-[#C9A66B] border border-[#C9A66B]/40'
+              : 'bg-[#1B4332] hover:bg-[#0D3B33] text-white'
+          }`}
         >
-          <Upload className="w-4 h-4 text-[#C9A66B]" />
+          <Upload className={`w-4 h-4 ${preferNewTab ? '' : 'text-[#C9A66B]'}`} />
           <span>{t.selectPdfFile}</span>
         </button>
 
-        <a
-          href={pdfPath}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="px-5 py-2.5 rounded-xl bg-[#C9A66B]/20 hover:bg-[#C9A66B]/30 text-[#B0693F] dark:text-[#C9A66B] font-bold text-xs border border-[#C9A66B]/40 inline-flex items-center space-x-2 rtl:space-x-reverse transition-all"
-        >
-          <ExternalLink className="w-4 h-4" />
-          <span>{t.openInNewTab}</span>
-        </a>
+        {/* When preferNewTab=false, New Tab is a secondary gold-outline button */}
+        {!preferNewTab ? (
+          <a
+            href={pdfPath}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="px-5 py-2.5 rounded-xl bg-[#C9A66B]/20 hover:bg-[#C9A66B]/30 text-[#B0693F] dark:text-[#C9A66B] font-bold text-xs border border-[#C9A66B]/40 inline-flex items-center space-x-2 rtl:space-x-reverse transition-all"
+          >
+            <ExternalLink className="w-4 h-4" />
+            <span>{t.openInNewTab}</span>
+          </a>
+        ) : null}
       </div>
     </div>
   );
