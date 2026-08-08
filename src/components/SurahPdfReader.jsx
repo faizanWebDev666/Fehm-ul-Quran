@@ -61,6 +61,8 @@ export const SurahPdfReader = ({ onOpenUploader }) => {
   const [loadingProgress, setLoadingProgress] = useState(10);
   const [statusText, setStatusText] = useState(t.loadingPdf);
   const [pdfError, setPdfError] = useState(false);
+  // Grace-period state: show elegant skeleton while native object engine loads
+  const [nativeLoading, setNativeLoading] = useState(true);
   // MOBILE-FIRST: Default to native browser object engine on mobile screens
   // Canvas mode (PDF.js) works well on desktop but is unreliable on mobile browsers
   const [viewEngine, setViewEngine] = useState(isMobileScreen ? 'object' : 'canvas');
@@ -88,6 +90,16 @@ export const SurahPdfReader = ({ onOpenUploader }) => {
     setTotalPages(1);
     setStatusText(t.loadingPdf);
     pdfDocRef.current = null;
+    setNativeLoading(true);
+
+    // Native object engine: grace period timer, then reveal viewer
+    // (most mobile browsers never fire reliable onload/onerror for <object>)
+    let nativeGraceTimer = null;
+    if (viewEngine === 'object') {
+      nativeGraceTimer = setTimeout(() => {
+        if (isMounted) setNativeLoading(false);
+      }, 2200);
+    }
 
     if (viewEngine === 'canvas') {
       const loadingTask = pdfjsLib.getDocument(pdfPath);
@@ -124,6 +136,7 @@ export const SurahPdfReader = ({ onOpenUploader }) => {
 
     return () => {
       isMounted = false;
+      if (nativeGraceTimer) clearTimeout(nativeGraceTimer);
       if (renderTaskRef.current) {
         renderTaskRef.current.cancel();
       }
@@ -353,12 +366,12 @@ export const SurahPdfReader = ({ onOpenUploader }) => {
               </button>
             </div>
 
-            {/* View Engine Toggle (Critical for Mobile) */}
+            {/* View Engine Toggle (icon-only on mobile) */}
             <button
               onClick={() => {
                 setViewEngine((prev) => (prev === 'canvas' ? 'object' : 'canvas'));
               }}
-              className={`px-3 py-1.5 rounded-xl border text-xs font-bold flex items-center space-x-1 rtl:space-x-reverse transition-all ${
+              className={`p-2 rounded-xl border transition-all ${
                 viewEngine === 'canvas'
                   ? 'bg-[#1B4332] border-[#1B4332] text-white shadow-sm'
                   : 'bg-[#FAF7F0] dark:bg-[#0F1410] border-[#C9A66B]/30 text-[#1B4332] dark:text-[#C9A66B] hover:bg-[#C9A66B]/15'
@@ -367,30 +380,30 @@ export const SurahPdfReader = ({ onOpenUploader }) => {
             >
               {viewEngine === 'canvas' ? (
                 <>
-                  <Smartphone className="w-3.5 h-3.5 text-[#C9A66B]" />
-                  <span className="hidden sm:inline">{t.canvasEngine}</span>
+                  <Smartphone className="w-4 h-4 text-[#C9A66B]" />
+                  <span className="hidden sm:inline ml-1 text-xs font-bold">{t.canvasEngine}</span>
                 </>
               ) : (
                 <>
-                  <Eye className="w-3.5 h-3.5" />
-                  <span className="hidden sm:inline">{t.objectEngine}</span>
+                  <Eye className="w-4 h-4" />
+                  <span className="hidden sm:inline ml-1 text-xs font-bold">{t.objectEngine}</span>
                 </>
               )}
             </button>
 
-            {/* Action Buttons: Direct Tab, Attach, Download */}
+            {/* Action Buttons: Direct Tab, Attach, Download
+                PRODUCTION: Always icon-first on mobile — no clutter. */}
             <div className="flex items-center space-x-2 rtl:space-x-reverse">
-              
-              {/* Direct Open in New Tab Button (Perfect for Mobile Preview) */}
+
+              {/* Direct Open in New Tab Icon (subtle toolbar action — never a primary CTA above the viewer) */}
               <a
                 href={pdfPath}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="px-3 py-1.5 rounded-xl bg-[#1B4332] hover:bg-[#0D3B33] text-white text-xs font-bold flex items-center space-x-1 rtl:space-x-reverse shadow-sm transition-all"
+                className="p-2 rounded-xl bg-[#FAF7F0] dark:bg-[#0F1410] border border-[#C9A66B]/30 text-[#1B4332] dark:text-[#C9A66B] hover:bg-[#C9A66B]/15 transition-all"
                 title={t.openInNewTab}
               >
-                <ExternalLink className="w-3.5 h-3.5 text-[#C9A66B]" />
-                <span className="hidden sm:inline">{t.openMobileView}</span>
+                <ExternalLink className="w-4 h-4" />
               </a>
 
               {/* Attach File Button */}
@@ -399,17 +412,17 @@ export const SurahPdfReader = ({ onOpenUploader }) => {
                 className="px-3 py-1.5 rounded-xl bg-[#FAF7F0] dark:bg-[#0F1410] border border-[#C9A66B]/30 text-xs font-bold text-[#1B4332] dark:text-[#C9A66B] flex items-center space-x-1 rtl:space-x-reverse hover:bg-[#C9A66B]/15 transition-all"
               >
                 <Upload className="w-3.5 h-3.5 text-[#C9A66B]" />
-                <span>{t.attachFile}</span>
+                <span className="hidden sm:inline">{t.attachFile}</span>
               </button>
 
               {/* Download Button */}
               <a
                 href={pdfPath}
                 download={`Surah_${currentSurah.id}_${currentSurah.nameEnglish}.pdf`}
-                className="px-3 py-1.5 rounded-xl bg-[#C9A66B]/20 hover:bg-[#C9A66B]/30 text-[#B0693F] dark:text-[#C9A66B] border border-[#C9A66B]/40 text-xs font-bold flex items-center space-x-1 rtl:space-x-reverse transition-all"
+                className="p-2 rounded-xl bg-[#C9A66B]/20 hover:bg-[#C9A66B]/30 text-[#B0693F] dark:text-[#C9A66B] border border-[#C9A66B]/40 transition-all"
+                title={t.download}
               >
-                <Download className="w-3.5 h-3.5" />
-                <span className="hidden sm:inline">{t.download}</span>
+                <Download className="w-4 h-4" />
               </a>
 
             </div>
@@ -439,48 +452,81 @@ export const SurahPdfReader = ({ onOpenUploader }) => {
 
         {/* Universal PDF View Renderer
             - Object engine runs independently of canvas errors
-            - Canvas engine shows Fallback only on its own errors */}
-        {viewEngine === 'object' ? (
-          <div className="w-full h-full flex flex-col items-center justify-center gap-3">
-            {/* Mobile-friendly Direct Open CTA (always visible on native engine)
-                - On many mobile browsers embedded PDFs don't render inline
-                - Opening directly in a new tab / system viewer ALWAYS works  */}
-            <a
-              href={pdfPath}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="w-full sm:w-auto px-4 sm:px-5 py-2.5 rounded-xl bg-[#1B4332] hover:bg-[#0D3B33] text-white text-xs font-bold flex items-center justify-center space-x-2 rtl:space-x-reverse shadow-md transition-all"
-            >
-              <ExternalLink className="w-4 h-4 text-[#C9A66B]" />
-              <span>{isUrdu ? 'PDF براہ راست کھولیں (تجویز کردہ)' : t.openInNewTab + ' (Recommended)'}</span>
-            </a>
+            - Canvas engine shows Fallback only on its own errors
 
-            <object
-              data={`${pdfPath}#page=${currentPage}`}
-              type="application/pdf"
-              className="w-full min-h-[500px] sm:min-h-[650px] rounded-xl shadow-inner bg-white"
-              onError={(e) => {
-                const obj = e.currentTarget;
-                const children = obj?.children;
-                if (children && children.length === 0) {
-                  setPdfError(true);
-                }
-              }}
-            >
-              <FallbackCard
-                surah={currentSurah}
-                pdfPath={pdfPath}
-                onOpenUploader={onOpenUploader}
-                language={language}
-                t={t}
-                onTryNativeMode={() => setViewEngine('canvas')}
-                preferNewTab
-              />
-            </object>
-            <div className="mt-1 text-[11px] font-mono text-[#EDEAE0]/60 flex items-center space-x-1.5 rtl:space-x-reverse px-2 text-center">
-              <Layers className="w-3.5 h-3.5 text-[#C9A66B]" />
-              <span>{t.objectEngine}</span>
+            PRODUCTION NOTE: We NEVER show "Open in New Tab" as a primary CTA above
+            the viewer. It makes the app feel broken/unfinished. Instead:
+             a) Native object renders first with an elegant Skeleton during load
+             b) If <object> truly can't render, its inner fallback -> FallbackCard
+                gives clear guidance with new-tab as primary action
+             c) Users always have the External Link icon up in the toolbar
+             */}
+        {viewEngine === 'object' ? (
+          <div className="w-full h-full flex flex-col items-center justify-start gap-2">
+            {/* Native Object Viewer (full-height, clean, no CTAs above the content) */}
+            <div className="relative w-full">
+              {/* Elegant skeleton while native engine is initializing (2.2s grace period) */}
+              {nativeLoading && (
+                <div className="absolute inset-0 z-10 pointer-events-none flex flex-col items-center justify-center min-h-[500px] sm:min-h-[650px] rounded-2xl overflow-hidden bg-gradient-to-br from-[#0A0E0B] via-[#11180F] to-[#0A0E0B] p-4 sm:p-8 animate-pulse">
+                  <div className="w-full h-full max-w-3xl flex flex-col items-center justify-center gap-4">
+                    <div className="w-12 h-12 rounded-full bg-[#C9A66B]/15 border border-[#C9A66B]/25 flex items-center justify-center">
+                      <Layers className="w-6 h-6 text-[#C9A66B] opacity-80" />
+                    </div>
+                    <div className="space-y-2 w-full max-w-sm text-center">
+                      <div className="h-4 bg-[#C9A66B]/10 rounded w-5/6 mx-auto" />
+                      <div className="h-3 bg-[#C9A66B]/8 rounded w-2/3 mx-auto" />
+                    </div>
+                    <div className="grid grid-cols-[repeat(14,1fr)] gap-1 w-full opacity-50 flex-1">
+                      {Array.from({ length: 56 }).map((_, i) => (
+                        <div
+                          key={i}
+                          className="aspect-[3/4] bg-white rounded-sm"
+                          style={{ opacity: 0.04 + ((i * 13) % 11) / 30 }}
+                        />
+                      ))}
+                    </div>
+                    <div className="h-2 w-20 rounded-full bg-[#C9A66B]/20 mt-2" />
+                  </div>
+                </div>
+              )}
+
+              {/* Actual PDF object */}
+              <object
+                data={`${pdfPath}#page=${currentPage}&navpanes=0&scrollbar=0&toolbar=1`}
+                type="application/pdf"
+                className={`w-full min-h-[500px] sm:min-h-[650px] rounded-2xl bg-white shadow-inner border border-[#C9A66B]/25 transition-opacity duration-500 ${
+                  nativeLoading ? 'opacity-0' : 'opacity-100'
+                }`}
+                onLoad={() => setNativeLoading(false)}
+                onError={(e) => {
+                  setNativeLoading(false);
+                  const obj = e.currentTarget;
+                  const children = obj?.children;
+                  if (children && children.length === 0) {
+                    setPdfError(true);
+                  }
+                }}
+              >
+                {/* Inner fallback: browser refuses object plugin (mobile often does) */}
+                <FallbackCard
+                  surah={currentSurah}
+                  pdfPath={pdfPath}
+                  onOpenUploader={onOpenUploader}
+                  language={language}
+                  t={t}
+                  onTryNativeMode={() => setViewEngine('canvas')}
+                  preferNewTab
+                />
+              </object>
             </div>
+
+            {/* Subtle engine indicator at BOTTOM (never on top) */}
+            {!nativeLoading && !pdfError && (
+              <div className="pt-2 text-[11px] font-mono text-[#EDEAE0]/40 flex items-center space-x-1.5 rtl:space-x-reverse px-2 text-center select-none">
+                <Layers className="w-3 h-3 text-[#C9A66B]/50" />
+                <span>{t.objectEngine} • {t.swipeHint}</span>
+              </div>
+            )}
           </div>
         ) : !pdfError ? (
           <div className="w-full h-full flex flex-col items-center justify-center overflow-auto py-2">
