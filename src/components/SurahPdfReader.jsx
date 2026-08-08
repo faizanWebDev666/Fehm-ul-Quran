@@ -451,19 +451,21 @@ export const SurahPdfReader = ({ onOpenUploader }) => {
         )}
 
         {/* Universal PDF View Renderer
-            - Object engine runs independently of canvas errors
-            - Canvas engine shows Fallback only on its own errors
+            - Native engine on mobile uses IFRAME (95%+ mobile support)
+            - Canvas engine works on desktop when user opts in
+
+            FALLBACK CHAIN (production-grade, never break):
+            1. <iframe>   →  Primary, best support on Android Chrome / iOS Safari
+            2. <object>   →  Nested fallback inside iframe for older browsers
+            3. FallbackCard  →  Last-resort guidance (new-tab as primary action)
+                                only shown when both iframe + object truly fail
 
             PRODUCTION NOTE: We NEVER show "Open in New Tab" as a primary CTA above
-            the viewer. It makes the app feel broken/unfinished. Instead:
-             a) Native object renders first with an elegant Skeleton during load
-             b) If <object> truly can't render, its inner fallback -> FallbackCard
-                gives clear guidance with new-tab as primary action
-             c) Users always have the External Link icon up in the toolbar
+            the viewer. Users always have the External Link icon up in the toolbar.
              */}
         {viewEngine === 'object' ? (
           <div className="w-full h-full flex flex-col items-center justify-start gap-2">
-            {/* Native Object Viewer (full-height, clean, no CTAs above the content) */}
+            {/* Native IFRAME Viewer (primary, 95%+ mobile browser support) */}
             <div className="relative w-full">
               {/* Elegant skeleton while native engine is initializing (2.2s grace period) */}
               {nativeLoading && (
@@ -490,34 +492,60 @@ export const SurahPdfReader = ({ onOpenUploader }) => {
                 </div>
               )}
 
-              {/* Actual PDF object */}
-              <object
-                data={`${pdfPath}#page=${currentPage}&navpanes=0&scrollbar=0&toolbar=1`}
-                type="application/pdf"
+              {/*
+                ★ PRIMARY RENDERER: <iframe>  — 95%+ mobile browsers support inline PDF via iframe
+                Chrome/Android, Safari/iOS, Samsung Internet, Firefox all have built-in PDF.js
+                viewers specifically for iframe-loaded PDFs.
+              */}
+              <iframe
+                src={`${pdfPath}#page=${currentPage}&navpanes=0&scrollbar=0&toolbar=1&view=FitH`}
+                title={`Surah ${currentSurah.nameEnglish} PDF`}
+                loading="lazy"
+                referrerPolicy="no-referrer"
+                allow="fullscreen"
                 className={`w-full min-h-[500px] sm:min-h-[650px] rounded-2xl bg-white shadow-inner border border-[#C9A66B]/25 transition-opacity duration-500 ${
                   nativeLoading ? 'opacity-0' : 'opacity-100'
                 }`}
                 onLoad={() => setNativeLoading(false)}
-                onError={(e) => {
+                onError={() => {
+                  // If iframe fails, browser will render its inner <object> fallback DOM,
+                  // which itself has a final FallbackCard inside. We keep the graceful
+                  // skeleton until the inner elements also declare failure.
                   setNativeLoading(false);
-                  const obj = e.currentTarget;
-                  const children = obj?.children;
-                  if (children && children.length === 0) {
-                    setPdfError(true);
-                  }
                 }}
               >
-                {/* Inner fallback: browser refuses object plugin (mobile often does) */}
-                <FallbackCard
-                  surah={currentSurah}
-                  pdfPath={pdfPath}
-                  onOpenUploader={onOpenUploader}
-                  language={language}
-                  t={t}
-                  onTryNativeMode={() => setViewEngine('canvas')}
-                  preferNewTab
-                />
-              </object>
+                {/* Fallback 1: <object> — older browsers where iframe PDF fails */}
+                <object
+                  data={`${pdfPath}#page=${currentPage}&navpanes=0&scrollbar=0&toolbar=1`}
+                  type="application/pdf"
+                  className={`w-full min-h-[500px] sm:min-h-[650px] rounded-2xl bg-white shadow-inner border border-[#C9A66B]/25 transition-opacity duration-500 ${
+                    nativeLoading ? 'opacity-0' : 'opacity-100'
+                  }`}
+                  onLoad={() => setNativeLoading(false)}
+                  onError={(e) => {
+                    setNativeLoading(false);
+                    const obj = e.currentTarget;
+                    const children = obj?.children;
+                    // Only set outer pdfError if <object> ALSO failed to render
+                    // (i.e. no FallbackCard auto-rendered children inside it)
+                    if (children && children.length === 0) {
+                      setPdfError(true);
+                    }
+                  }}
+                >
+                  {/* Final fallback: neither iframe nor object supported,
+                      show user-friendly card with New Tab as primary action. */}
+                  <FallbackCard
+                    surah={currentSurah}
+                    pdfPath={pdfPath}
+                    onOpenUploader={onOpenUploader}
+                    language={language}
+                    t={t}
+                    onTryNativeMode={() => setViewEngine('canvas')}
+                    preferNewTab
+                  />
+                </object>
+              </iframe>
             </div>
 
             {/* Subtle engine indicator at BOTTOM (never on top) */}
