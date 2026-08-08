@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { Routes, Route, useParams } from 'react-router-dom';
 import { QuranProvider, useQuran } from './context/QuranContext';
 import { Header } from './components/Header';
 import { SurahPdfList } from './components/SurahPdfList';
@@ -7,8 +8,25 @@ import { PdfUploaderModal } from './components/PdfUploaderModal';
 import { translations } from './utils/translations';
 import { ArrowUp, ShieldCheck } from 'lucide-react';
 
+const SyncRouteToContext = () => {
+  const params = useParams();
+  const { setActiveSurahId, setActiveSurahPart } = useQuran();
+
+  useEffect(() => {
+    if (params.id) {
+      setActiveSurahId(Number(params.id));
+      setActiveSurahPart(params.part ? Number(params.part) : null);
+    } else {
+      setActiveSurahId(null);
+      setActiveSurahPart(null);
+    }
+  }, [params.id, params.part, setActiveSurahId, setActiveSurahPart]);
+
+  return null;
+};
+
 const AppContent = () => {
-  const { activeSurahId, language } = useQuran();
+  const { language } = useQuran();
   const t = translations[language] || translations.urdu;
   const isUrdu = language === 'urdu';
   const [isUploaderOpen, setIsUploaderOpen] = useState(false);
@@ -20,16 +38,31 @@ const AppContent = () => {
   return (
     <div className="min-h-screen flex flex-col justify-between selection:bg-[#C9A66B]/30 selection:text-[#1B4332] bg-[#FAF7F0] dark:bg-[#0F1410] text-[#22261F] dark:text-[#EDEAE0] transition-colors">
       
+      <SyncRouteToContext />
+
       {/* Clean Mobile Friendly Header */}
       <Header onOpenUploader={() => setIsUploaderOpen(true)} />
 
       {/* Main Single-Focus Content Area */}
       <main className="flex-1 px-3 sm:px-6 pb-12">
-        {activeSurahId ? (
-          <SurahPdfReader onOpenUploader={() => setIsUploaderOpen(true)} />
-        ) : (
-          <SurahPdfList onOpenUploader={() => setIsUploaderOpen(true)} />
-        )}
+        <Routes>
+          <Route
+            path="/"
+            element={<SurahPdfList onOpenUploader={() => setIsUploaderOpen(true)} />}
+          />
+          <Route
+            path="/read/:id"
+            element={<SurahPdfReader onOpenUploader={() => setIsUploaderOpen(true)} />}
+          />
+          <Route
+            path="/read/:id/part/:part"
+            element={<SurahPdfReader onOpenUploader={() => setIsUploaderOpen(true)} />}
+          />
+          <Route
+            path="*"
+            element={<SurahPdfList onOpenUploader={() => setIsUploaderOpen(true)} />}
+          />
+        </Routes>
       </main>
 
       {/* Modal */}

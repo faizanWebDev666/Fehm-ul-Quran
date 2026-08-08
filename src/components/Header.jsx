@@ -31,9 +31,7 @@ export const Header = ({ onOpenUploader }) => {
             <h1 className={`text-xl sm:text-2xl font-bold text-[#1B4332] dark:text-[#C9A66B] leading-tight ${language === 'urdu' ? 'font-urdu' : 'font-sans'}`}>
               {t.brandTitle}
             </h1>
-            <p className={`text-[11px] sm:text-xs text-gray-600 dark:text-gray-400 ${language === 'urdu' ? 'font-urdu' : 'font-sans'}`}>
-              {t.brandSubtitle} • {completedCount}/114 {t.surahsCompleted}
-            </p>
+           
           </div>
         </div>
 
@@ -51,15 +49,6 @@ export const Header = ({ onOpenUploader }) => {
             </span>
           </button>
 
-          {/* PDF Uploader Trigger Button */}
-          <button
-            onClick={onOpenUploader}
-            className={`flex items-center space-x-1.5 rtl:space-x-reverse px-3 py-2 rounded-xl bg-[#C9A66B]/15 hover:bg-[#C9A66B]/25 text-[#B0693F] dark:text-[#C9A66B] border border-[#C9A66B]/40 text-xs font-bold transition-all ${language === 'urdu' ? 'font-urdu' : 'font-sans'}`}
-            title={t.pdfUploader}
-          >
-            <Upload className="w-4 h-4" />
-            <span className="hidden sm:inline">{t.pdfUploader}</span>
-          </button>
 
           {/* Theme Toggle */}
           <button

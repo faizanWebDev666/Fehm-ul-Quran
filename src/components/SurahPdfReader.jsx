@@ -35,20 +35,23 @@ try {
 export const SurahPdfReader = ({ onOpenUploader }) => {
   const {
     activeSurahId,
-    setActiveSurahId,
     closePdfReader,
     getSurahById,
-    surahPdfs,
     completedSurahs,
     toggleSurahCompletion,
-    language
+    language,
+    activeSurahPart,
+    setActivePart,
+    getActiveSurahPdfPath,
+    openPdfReader,
   } = useQuran();
 
   const t = translations[language] || translations.urdu;
   const isUrdu = language === 'urdu';
 
   const currentSurah = getSurahById(activeSurahId || 1);
-  const pdfPath = surahPdfs[currentSurah.id] || currentSurah.pdfPath;
+  const pdfPath = getActiveSurahPdfPath(currentSurah);
+  const currentPart = activeSurahPart || 1;
 
   // Detect mobile screen once at mount
   const isMobileScreen = typeof window !== 'undefined' && window.innerWidth < 768;
@@ -162,7 +165,7 @@ export const SurahPdfReader = ({ onOpenUploader }) => {
     }
 
     if (viewEngine === 'canvas') {
-      const loadingTask = pdfjsLib.getDocument(pdfPath);
+      const loadingTask = pdfjsLib.getDocument({ url: pdfPath });
 
       loadingTask.onProgress = (progressData) => {
         if (isMounted && progressData.total > 0) {
@@ -345,21 +348,44 @@ export const SurahPdfReader = ({ onOpenUploader }) => {
             </button>
 
             {/* Dropdown Selector */}
-            <select
-              value={currentSurah.id}
-              onChange={(e) => {
-                setActiveSurahId(Number(e.target.value));
-              }}
-              className={`px-3 py-2 rounded-xl bg-[#FAF7F0] dark:bg-[#0F1410] border border-[#C9A66B]/30 font-bold text-xs sm:text-sm text-[#1B4332] dark:text-[#C9A66B] outline-none max-w-[180px] sm:max-w-xs truncate cursor-pointer ${isUrdu ? 'font-urdu' : 'font-sans'}`}
-            >
-              {SURAHS_DATA.map((s) => (
-                <option key={s.id} value={s.id}>
-                  {isUrdu
-                    ? `سورۃ ${s.id}. ${s.nameUrdu} (${s.nameArabic})`
-                    : `Surah ${s.id}. ${s.nameEnglish} (${s.nameArabic})`}
-                </option>
-              ))}
-            </select>
+            <div className="flex flex-col items-center gap-1">
+              <select
+                value={currentSurah.id}
+                onChange={(e) => {
+                  openPdfReader(Number(e.target.value));
+                }}
+                className={`px-3 py-2 rounded-xl bg-[#FAF7F0] dark:bg-[#0F1410] border border-[#C9A66B]/30 font-bold text-xs sm:text-sm text-[#1B4332] dark:text-[#C9A66B] outline-none max-w-[180px] sm:max-w-xs truncate cursor-pointer ${isUrdu ? 'font-urdu' : 'font-sans'}`}
+              >
+                {SURAHS_DATA.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {isUrdu
+                      ? `سورۃ ${s.id}. ${s.nameUrdu} (${s.nameArabic})`
+                      : `Surah ${s.id}. ${s.nameEnglish} (${s.nameArabic})`}
+                  </option>
+                ))}
+              </select>
+
+              {currentSurah.hasParts && currentSurah.parts && (
+                <div className="flex items-center gap-1">
+                  {currentSurah.parts.map((partData) => {
+                    const isActive = currentPart === partData.part;
+                    return (
+                      <button
+                        key={partData.part}
+                        onClick={() => setActivePart(partData.part)}
+                        className={`px-2.5 py-1 rounded-lg text-[10px] sm:text-xs font-bold transition-all border ${
+                          isActive
+                            ? 'bg-[#1B4332] text-white border-[#1B4332] shadow-sm'
+                            : 'bg-[#FAF7F0] dark:bg-[#0F1410] text-[#1B4332] dark:text-[#C9A66B] border-[#C9A66B]/30 hover:bg-[#C9A66B]/15'
+                        }`}
+                      >
+                        {isUrdu ? partData.labelUrdu : partData.labelEnglish}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
 
             {/* Completion Toggle */}
             <button
@@ -478,7 +504,7 @@ export const SurahPdfReader = ({ onOpenUploader }) => {
               {/* Download Button */}
               <a
                 href={pdfPath}
-                download={`Surah_${currentSurah.id}_${currentSurah.nameEnglish}.pdf`}
+                download={`Surah_${currentSurah.id}${currentSurah.hasParts ? `_Part${currentPart}` : ''}_${currentSurah.nameEnglish}.pdf`}
                 className="p-2 rounded-xl bg-[#C9A66B]/20 hover:bg-[#C9A66B]/30 text-[#B0693F] dark:text-[#C9A66B] border border-[#C9A66B]/40 transition-all"
                 title={t.download}
               >
@@ -655,7 +681,6 @@ export const SurahPdfReader = ({ onOpenUploader }) => {
                   <FallbackCard
                     surah={currentSurah}
                     pdfPath={pdfPath}
-                    onOpenUploader={onOpenUploader}
                     language={language}
                     t={t}
                     onTryNativeMode={() => setViewEngine('canvas')}
@@ -688,7 +713,6 @@ export const SurahPdfReader = ({ onOpenUploader }) => {
           <FallbackCard
             surah={currentSurah}
             pdfPath={pdfPath}
-            onOpenUploader={onOpenUploader}
             language={language}
             t={t}
             onTryNativeMode={() => {
@@ -705,7 +729,7 @@ export const SurahPdfReader = ({ onOpenUploader }) => {
 };
 
 // Fallback Card component when local/remote PDF is missing or fails
-const FallbackCard = ({ surah, pdfPath, onOpenUploader, language, t, onTryNativeMode, preferNewTab }) => {
+const FallbackCard = ({ surah, pdfPath, language, t, onTryNativeMode, preferNewTab }) => {
   const isUrdu = language === 'urdu';
   return (
     <div
@@ -723,8 +747,8 @@ const FallbackCard = ({ surah, pdfPath, onOpenUploader, language, t, onTryNative
         <p className="text-xs sm:text-sm text-gray-600 dark:text-gray-300 max-w-md mx-auto">
           {preferNewTab
             ? (isUrdu
-                ? 'پی ڈی ایف ملازم ان لائن نئے ٹیب/سسٹم ویور میں کھولیں۔ براؤزر کی درمیانی ویو عملی طور پر ہمیشہ کام کرتی ہے۔'
-                : 'Please open this PDF in a new tab / system viewer — it works reliably on all devices.')
+                ? 'اس پی ڈی ایف کو بہتر انداز میں پڑھنے کے لیے اسے نئے ٹیب میں کھولیں یا نیچے والا دوسرا موڈ آزمائیں۔'
+                : 'For a better reading experience, open this PDF in a new tab or try the other viewer mode below.')
             : t.pdfPendingMsg}
         </p>
       </div>
@@ -756,19 +780,6 @@ const FallbackCard = ({ surah, pdfPath, onOpenUploader, language, t, onTryNative
             <span>{isUrdu ? 'دوسرا موڈ آزمائیں' : (preferNewTab ? 'Try other mode' : t.objectEngine)}</span>
           </button>
         )}
-
-        {/* When preferNewTab=false, Select PDF is the green primary action (default fallback for missing uploads) */}
-        <button
-          onClick={onOpenUploader}
-          className={`px-5 py-2.5 rounded-xl font-bold text-xs shadow-md inline-flex items-center space-x-2 rtl:space-x-reverse transition-all ${
-            preferNewTab
-              ? 'bg-[#C9A66B]/20 hover:bg-[#C9A66B]/30 text-[#B0693F] dark:text-[#C9A66B] border border-[#C9A66B]/40'
-              : 'bg-[#1B4332] hover:bg-[#0D3B33] text-white'
-          }`}
-        >
-          <Upload className={`w-4 h-4 ${preferNewTab ? '' : 'text-[#C9A66B]'}`} />
-          <span>{t.selectPdfFile}</span>
-        </button>
 
         {/* When preferNewTab=false, New Tab is a secondary gold-outline button */}
         {!preferNewTab ? (

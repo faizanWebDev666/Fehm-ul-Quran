@@ -210,17 +210,31 @@ export const SurahPdfList = ({ onOpenUploader }) => {
 
                 </div>
 
-                {/* Actions: Primary PDF Button & Checkbox */}
+                {/* Actions: Primary PDF Button(s) & Checkbox */}
                 <div className="flex items-center space-x-2.5 rtl:space-x-reverse shrink-0 pt-2 sm:pt-0 border-t sm:border-t-0 border-gray-100 dark:border-gray-800">
-                  
-                  {/* Read PDF Button */}
-                  <button
-                    onClick={() => openPdfReader(surah.id)}
-                    className="flex-1 sm:flex-initial flex items-center justify-center space-x-2 rtl:space-x-reverse px-5 py-3 rounded-xl bg-[#1B4332] hover:bg-[#0D3B33] active:bg-[#071F17] text-white text-sm font-bold shadow-md transition-all"
-                  >
-                    <FileText className="w-4 h-4 text-[#C9A66B]" />
-                    <span>{t.readPdf}</span>
-                  </button>
+
+                  {surah.hasParts && surah.parts ? (
+                    <div className="flex flex-col sm:flex-row items-stretch gap-1.5 flex-1 sm:flex-initial">
+                      {surah.parts.map((partData) => (
+                        <button
+                          key={partData.part}
+                          onClick={() => openPdfReader(surah.id, partData.part)}
+                          className="flex items-center justify-center space-x-1.5 rtl:space-x-reverse px-4 sm:px-5 py-2.5 rounded-xl bg-[#1B4332] hover:bg-[#0D3B33] active:bg-[#071F17] text-white text-xs sm:text-sm font-bold shadow-md transition-all border border-[#C9A66B]/30"
+                        >
+                          <FileText className="w-3.5 h-3.5 text-[#C9A66B]" />
+                          <span>{isUrdu ? partData.labelUrdu : partData.labelEnglish}</span>
+                        </button>
+                      ))}
+                    </div>
+                  ) : (
+                    <button
+                      onClick={() => openPdfReader(surah.id)}
+                      className="flex-1 sm:flex-initial flex items-center justify-center space-x-2 rtl:space-x-reverse px-5 py-3 rounded-xl bg-[#1B4332] hover:bg-[#0D3B33] active:bg-[#071F17] text-white text-sm font-bold shadow-md transition-all"
+                    >
+                      <FileText className="w-4 h-4 text-[#C9A66B]" />
+                      <span>{t.readPdf}</span>
+                    </button>
+                  )}
 
                   {/* Completion Toggle Button */}
                   <button
