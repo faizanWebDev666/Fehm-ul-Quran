@@ -329,7 +329,7 @@ export const SurahPdfReader = ({ onOpenUploader }) => {
 
   return (
     <div
-      className={`space-y-4 my-3 max-w-5xl mx-auto ${isUrdu ? 'font-urdu' : 'font-sans'}`}
+      className={`w-full min-w-0 space-y-4 my-3 max-w-5xl mx-auto ${isUrdu ? 'font-urdu' : 'font-sans'}`}
       dir={isUrdu ? 'rtl' : 'ltr'}
     >
       
@@ -338,23 +338,23 @@ export const SurahPdfReader = ({ onOpenUploader }) => {
         <div className="flex flex-col gap-3">
           
           {/* Row 1: Back, Surah Selector & Completion Toggle */}
-          <div className="flex items-center justify-between gap-2">
+          <div className="flex flex-wrap items-start sm:items-center justify-between gap-2">
             <button
               onClick={closePdfReader}
-              className="flex items-center space-x-1.5 rtl:space-x-reverse px-3 py-2 rounded-xl bg-[#FAF7F0] dark:bg-[#0F1410] border border-[#C9A66B]/30 text-xs font-bold text-[#1B4332] dark:text-[#C9A66B] hover:bg-[#C9A66B]/15 transition-all"
+              className="flex shrink-0 items-center space-x-1.5 rtl:space-x-reverse px-3 py-2 rounded-xl bg-[#FAF7F0] dark:bg-[#0F1410] border border-[#C9A66B]/30 text-xs font-bold text-[#1B4332] dark:text-[#C9A66B] hover:bg-[#C9A66B]/15 transition-all"
             >
               {isUrdu ? <ArrowRight className="w-4 h-4" /> : <ArrowLeft className="w-4 h-4" />}
               <span>{t.backToList}</span>
             </button>
 
             {/* Dropdown Selector */}
-            <div className="flex flex-col items-center gap-1">
+            <div className="order-3 sm:order-none flex min-w-0 w-full sm:w-auto flex-col items-center gap-1">
               <select
                 value={currentSurah.id}
                 onChange={(e) => {
                   openPdfReader(Number(e.target.value));
                 }}
-                className={`px-3 py-2 rounded-xl bg-[#FAF7F0] dark:bg-[#0F1410] border border-[#C9A66B]/30 font-bold text-xs sm:text-sm text-[#1B4332] dark:text-[#C9A66B] outline-none max-w-[180px] sm:max-w-xs truncate cursor-pointer ${isUrdu ? 'font-urdu' : 'font-sans'}`}
+                className={`w-full sm:w-auto px-3 py-2 rounded-xl bg-[#FAF7F0] dark:bg-[#0F1410] border border-[#C9A66B]/30 font-bold text-xs sm:text-sm text-[#1B4332] dark:text-[#C9A66B] outline-none max-w-full sm:max-w-xs truncate cursor-pointer ${isUrdu ? 'font-urdu' : 'font-sans'}`}
               >
                 {SURAHS_DATA.map((s) => (
                   <option key={s.id} value={s.id}>
@@ -390,7 +390,7 @@ export const SurahPdfReader = ({ onOpenUploader }) => {
             {/* Completion Toggle */}
             <button
               onClick={() => toggleSurahCompletion(currentSurah.id)}
-              className={`flex items-center space-x-1 rtl:space-x-reverse px-3 py-2 rounded-xl text-xs font-bold transition-all ${
+              className={`flex shrink-0 items-center space-x-1 rtl:space-x-reverse px-3 py-2 rounded-xl text-xs font-bold transition-all ${
                 isCompleted
                   ? 'bg-emerald-600 text-white shadow-sm'
                   : 'bg-gray-100 dark:bg-gray-800 text-gray-500 hover:text-emerald-600'
@@ -404,7 +404,7 @@ export const SurahPdfReader = ({ onOpenUploader }) => {
           </div>
 
           {/* Row 2: Page Navigation, Zoom, Engine Toggle & Actions */}
-          <div className="flex flex-wrap items-center justify-between gap-2 border-t border-gray-100 dark:border-gray-800/60 pt-2.5">
+          <div className="flex flex-wrap items-center justify-start sm:justify-between gap-2 border-t border-gray-100 dark:border-gray-800/60 pt-2.5">
             
             {/* Page Navigation Controls */}
             <div className="flex items-center space-x-1 rtl:space-x-reverse bg-[#FAF7F0] dark:bg-[#0F1410] border border-[#C9A66B]/30 px-2 py-1 rounded-xl text-xs font-bold">
@@ -521,7 +521,7 @@ export const SurahPdfReader = ({ onOpenUploader }) => {
       {/* Main Display Container */}
       <div
         ref={containerRef}
-        className="relative min-h-[550px] sm:min-h-[650px] bg-[#0A0E0B] rounded-3xl border-2 border-[#C9A66B]/40 shadow-2xl overflow-hidden flex flex-col items-center justify-center p-2 sm:p-4 touch-manipulation"
+        className="relative w-full min-w-0 min-h-[420px] h-[70vh] max-h-[850px] bg-[#0A0E0B] rounded-3xl border-2 border-[#C9A66B]/40 shadow-2xl overflow-hidden flex flex-col items-center justify-center p-2 sm:p-4 touch-manipulation"
         style={{ touchAction: 'pan-y pinch-zoom' }}
         onTouchStart={handleTouchStart}
         onTouchEnd={handleTouchEnd}
@@ -590,7 +590,7 @@ export const SurahPdfReader = ({ onOpenUploader }) => {
               {/* Elegant skeleton + LIVE STATUS inside while native engine initializing
                   (keeps user engaged, page does not look frozen) */}
               {nativeLoading && (
-                <div className="absolute inset-0 z-10 pointer-events-none flex flex-col items-center justify-center min-h-[500px] sm:min-h-[650px] rounded-2xl overflow-hidden bg-gradient-to-br from-[#0A0E0B] via-[#11180F] to-[#0A0E0B] p-4 sm:p-8">
+                <div className="absolute inset-0 z-10 pointer-events-none flex flex-col items-center justify-center rounded-2xl overflow-hidden bg-gradient-to-br from-[#0A0E0B] via-[#11180F] to-[#0A0E0B] p-4 sm:p-8">
                   <div className="w-full h-full max-w-3xl flex flex-col items-center justify-center gap-5">
                     {/* Spinner */}
                     <div className="relative">
@@ -642,7 +642,7 @@ export const SurahPdfReader = ({ onOpenUploader }) => {
                 loading="lazy"
                 referrerPolicy="no-referrer"
                 allow="fullscreen"
-                className={`w-full min-h-[500px] sm:min-h-[650px] rounded-2xl bg-white shadow-inner border border-[#C9A66B]/25 transition-opacity duration-500 ${
+                className={`w-full h-full min-h-0 rounded-2xl bg-white shadow-inner border border-[#C9A66B]/25 transition-opacity duration-500 ${
                   nativeLoading ? 'opacity-0' : 'opacity-100'
                 }`}
                 onLoad={() => {
@@ -661,7 +661,7 @@ export const SurahPdfReader = ({ onOpenUploader }) => {
                 <object
                   data={`${pdfPath}#page=${currentPage}&navpanes=0&scrollbar=0&toolbar=1`}
                   type="application/pdf"
-                  className={`w-full min-h-[500px] sm:min-h-[650px] rounded-2xl bg-white shadow-inner border border-[#C9A66B]/25 transition-opacity duration-500 ${
+                  className={`w-full h-full min-h-0 rounded-2xl bg-white shadow-inner border border-[#C9A66B]/25 transition-opacity duration-500 ${
                     nativeLoading ? 'opacity-0' : 'opacity-100'
                   }`}
                   onLoad={() => setNativeLoading(false)}
