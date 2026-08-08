@@ -66,6 +66,9 @@ export const SurahPdfReader = ({ onOpenUploader }) => {
   // MOBILE-FIRST: Default to native browser object engine on mobile screens
   // Canvas mode (PDF.js) works well on desktop but is unreliable on mobile browsers
   const [viewEngine, setViewEngine] = useState(isMobileScreen ? 'object' : 'canvas');
+  // State for the toolbar "Open in New Tab" / external button click
+  const [openingExternal, setOpeningExternal] = useState(false);
+  const [externalProgress, setExternalProgress] = useState(0);
 
   // Canvas & PDF References
   const canvasRef = useRef(null);
