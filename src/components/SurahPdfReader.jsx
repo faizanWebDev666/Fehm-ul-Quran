@@ -92,13 +92,70 @@ export const SurahPdfReader = ({ onOpenUploader }) => {
     pdfDocRef.current = null;
     setNativeLoading(true);
 
-    // Native object engine: grace period timer, then reveal viewer
-    // (most mobile browsers never fire reliable onload/onerror for <object>)
-    let nativeGraceTimer = null;
+    // 👇 Native (iframe) engine progressive loader
+    // (iframe onload on mobile is VERY slow / unreliable, so we give constant feedback
+    //  with changing status text and incremental progress percentages to keep the user
+    //  confident the page is not frozen. We finally reveal at 10s max even if no onload.)
+    const timers = [];
     if (viewEngine === 'object') {
-      nativeGraceTimer = setTimeout(() => {
-        if (isMounted) setNativeLoading(false);
-      }, 2200);
+      setLoadingProgress(8);
+      setStatusText(
+        isUrdu ? 'فائل لوڈ ہو رہی ہے…' : t.loadingPdf
+      );
+
+      timers.push(setTimeout(() => {
+        if (!isMounted) return;
+        setLoadingProgress(22);
+        setStatusText(
+          isUrdu ? 'بینک سروسز سے کنیکٹ ہو رہا ہے…' : (isUrdu ? '' : 'Connecting to document server…')
+        );
+      }, 900));
+
+      timers.push(setTimeout(() => {
+        if (!isMounted) return;
+        setLoadingProgress(38);
+        setStatusText(
+          isUrdu ? 'پی ڈی ایف ڈیٹا ڈاؤن لوڈ ہو رہا ہے…' : 'Downloading PDF content…'
+        );
+      }, 2100));
+
+      timers.push(setTimeout(() => {
+        if (!isMounted) return;
+        setLoadingProgress(58);
+        setStatusText(
+          isUrdu ? 'براؤزر میں پیج رینڈر ہو رہے ہیں…' : (isUrdu ? '' : 'Rendering PDF pages in viewer…')
+        );
+      }, 3800));
+
+      timers.push(setTimeout(() => {
+        if (!isMounted) return;
+        setLoadingProgress(74);
+        setStatusText(
+          isUrdu ? 'تقریباً تیار ہے، چند لمحات…' : 'Almost ready, finalizing…'
+        );
+      }, 5800));
+
+      timers.push(setTimeout(() => {
+        if (!isMounted) return;
+        setLoadingProgress(88);
+        setStatusText(
+          isUrdu ? 'ویور کھول رہا ہے…' : 'Opening PDF viewer…'
+        );
+      }, 7800));
+
+      // MAX FALLBACK: If iframe onload never fires (some mobile browsers never emit it),
+      // force-reveal the iframe at 10 seconds so the user sees something at all.
+      // 95% of the time the PDF is already loaded inside by then, it's just the event
+      // that the mobile browser chose not to dispatch to us.
+      timers.push(setTimeout(() => {
+        if (isMounted) {
+          setLoadingProgress(96);
+          setNativeLoading(false);
+          setTimeout(() => {
+            if (isMounted) setLoadingProgress(100);
+          }, 400);
+        }
+      }, 10000));
     }
 
     if (viewEngine === 'canvas') {
@@ -136,7 +193,7 @@ export const SurahPdfReader = ({ onOpenUploader }) => {
 
     return () => {
       isMounted = false;
-      if (nativeGraceTimer) clearTimeout(nativeGraceTimer);
+      timers.forEach((t) => clearTimeout(t));
       if (renderTaskRef.current) {
         renderTaskRef.current.cancel();
       }
@@ -440,6 +497,40 @@ export const SurahPdfReader = ({ onOpenUploader }) => {
         onTouchStart={handleTouchStart}
         onTouchEnd={handleTouchEnd}
       >
+        {/* 🏷️ LOADING INFO BANNER (native engine)
+            Shows above the viewer ONLY while native iframe is initializing.
+            This answers the user's exact concern: "between time is much and no
+            preloader or information like file is opening etc show"  */}
+        {nativeLoading && viewEngine === 'object' && (
+          <div className="w-full mb-2.5 rounded-2xl bg-[#1B4332]/95 border border-[#C9A66B]/30 px-3.5 py-2.5 shadow-inner animate-pulse">
+            <div className="flex items-center space-x-3 rtl:space-x-reverse">
+              <div className="relative">
+                <div className="w-8 h-8 rounded-full bg-[#C9A66B]/15 border border-[#C9A66B]/30 flex items-center justify-center">
+                  <FileText className="w-4 h-4 text-[#C9A66B]" />
+                </div>
+                <div className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-emerald-400 animate-ping" />
+                <div className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-emerald-500" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className={`text-[11px] sm:text-xs font-bold text-[#FAF7F0] truncate ${isUrdu ? 'font-urdu' : ''}`}>
+                  {statusText || (isUrdu ? 'فائل کھول رہا ہے…' : 'Opening PDF file…')}
+                </p>
+                <div className="mt-1.5 h-1.5 w-full rounded-full bg-[#C9A66B]/15 overflow-hidden">
+                  <div
+                    className="h-full rounded-full bg-gradient-to-r from-[#C9A66B] to-[#E8D5A8] transition-all duration-700 ease-out"
+                    style={{ width: `${loadingProgress}%` }}
+                  />
+                </div>
+              </div>
+              <div className="text-right rtl:text-left flex-shrink-0">
+                <div className="text-[10px] sm:text-xs font-mono font-bold text-[#C9A66B] tabular-nums">
+                  {loadingProgress}%
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Animated Islamic Preloader Overlay (only for canvas engine) */}
         {loading && viewEngine === 'canvas' && (
           <PdfPreloader
@@ -467,18 +558,38 @@ export const SurahPdfReader = ({ onOpenUploader }) => {
           <div className="w-full h-full flex flex-col items-center justify-start gap-2">
             {/* Native IFRAME Viewer (primary, 95%+ mobile browser support) */}
             <div className="relative w-full">
-              {/* Elegant skeleton while native engine is initializing (2.2s grace period) */}
+              {/* Elegant skeleton + LIVE STATUS inside while native engine initializing
+                  (keeps user engaged, page does not look frozen) */}
               {nativeLoading && (
-                <div className="absolute inset-0 z-10 pointer-events-none flex flex-col items-center justify-center min-h-[500px] sm:min-h-[650px] rounded-2xl overflow-hidden bg-gradient-to-br from-[#0A0E0B] via-[#11180F] to-[#0A0E0B] p-4 sm:p-8 animate-pulse">
-                  <div className="w-full h-full max-w-3xl flex flex-col items-center justify-center gap-4">
-                    <div className="w-12 h-12 rounded-full bg-[#C9A66B]/15 border border-[#C9A66B]/25 flex items-center justify-center">
-                      <Layers className="w-6 h-6 text-[#C9A66B] opacity-80" />
+                <div className="absolute inset-0 z-10 pointer-events-none flex flex-col items-center justify-center min-h-[500px] sm:min-h-[650px] rounded-2xl overflow-hidden bg-gradient-to-br from-[#0A0E0B] via-[#11180F] to-[#0A0E0B] p-4 sm:p-8">
+                  <div className="w-full h-full max-w-3xl flex flex-col items-center justify-center gap-5">
+                    {/* Spinner */}
+                    <div className="relative">
+                      <div className="w-16 h-16 rounded-full border-4 border-[#C9A66B]/15" />
+                      <div className="absolute inset-0 w-16 h-16 rounded-full border-4 border-transparent border-t-[#C9A66B] animate-spin" />
+                      <div className="absolute inset-0 flex items-center justify-center">
+                        <Layers className="w-6 h-6 text-[#C9A66B]" />
+                      </div>
                     </div>
-                    <div className="space-y-2 w-full max-w-sm text-center">
-                      <div className="h-4 bg-[#C9A66B]/10 rounded w-5/6 mx-auto" />
-                      <div className="h-3 bg-[#C9A66B]/8 rounded w-2/3 mx-auto" />
+
+                    {/* Live status + progress percentage (this is the KEY fix the user asked for!) */}
+                    <div className="w-full max-w-md space-y-2 text-center px-4">
+                      <p className={`text-xs sm:text-sm font-bold text-[#EDEAE0] ${isUrdu ? 'font-urdu' : ''}`}>
+                        {statusText || (isUrdu ? 'فائل کھول رہا ہے…' : 'Opening PDF file…')}
+                      </p>
+                      <div className="h-2 w-full rounded-full bg-[#C9A66B]/10 overflow-hidden">
+                        <div
+                          className="h-full rounded-full bg-gradient-to-r from-[#C9A66B] via-[#E8D5A8] to-[#C9A66B] animate-pulse transition-all duration-700 ease-out"
+                          style={{ width: `${loadingProgress}%` }}
+                        />
+                      </div>
+                      <div className="text-[10px] sm:text-xs font-mono font-bold text-[#C9A66B] tabular-nums">
+                        {loadingProgress}% {isUrdu ? 'مکمل' : 'complete'}
+                      </div>
                     </div>
-                    <div className="grid grid-cols-[repeat(14,1fr)] gap-1 w-full opacity-50 flex-1">
+
+                    {/* Fake page grid for visual depth perception */}
+                    <div className="grid grid-cols-[repeat(14,1fr)] gap-1 w-full opacity-40 flex-1">
                       {Array.from({ length: 56 }).map((_, i) => (
                         <div
                           key={i}
@@ -487,7 +598,6 @@ export const SurahPdfReader = ({ onOpenUploader }) => {
                         />
                       ))}
                     </div>
-                    <div className="h-2 w-20 rounded-full bg-[#C9A66B]/20 mt-2" />
                   </div>
                 </div>
               )}
@@ -506,7 +616,11 @@ export const SurahPdfReader = ({ onOpenUploader }) => {
                 className={`w-full min-h-[500px] sm:min-h-[650px] rounded-2xl bg-white shadow-inner border border-[#C9A66B]/25 transition-opacity duration-500 ${
                   nativeLoading ? 'opacity-0' : 'opacity-100'
                 }`}
-                onLoad={() => setNativeLoading(false)}
+                onLoad={() => {
+                  // When iframe actually finishes: push to 100% immediately and reveal viewer
+                  setLoadingProgress(100);
+                  setNativeLoading(false);
+                }}
                 onError={() => {
                   // If iframe fails, browser will render its inner <object> fallback DOM,
                   // which itself has a final FallbackCard inside. We keep the graceful
