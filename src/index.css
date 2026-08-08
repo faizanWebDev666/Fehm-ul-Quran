@@ -1,0 +1,124 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --bg-light: #FAF7F0;
+    --bg-dark: #0F1410;
+    --primary-emerald: #1B4332;
+    --primary-teal: #0D3B33;
+    --accent-gold: #C9A66B;
+    --accent-terracotta: #B0693F;
+    --text-charcoal: #22261F;
+    --text-offwhite: #EDEAE0;
+  }
+
+  body {
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    background-color: var(--bg-light);
+    color: var(--text-charcoal);
+  }
+
+  .dark body {
+    background-color: var(--bg-dark);
+    color: var(--text-offwhite);
+  }
+}
+
+/* Custom Font Utilities */
+.font-quran {
+  font-family: 'Amiri Quran', 'Amiri', 'Noto Naskh Arabic', serif;
+  line-height: 2.1;
+}
+
+.font-naskh {
+  font-family: 'Noto Naskh Arabic', 'Amiri', serif;
+}
+
+.font-urdu {
+  font-family: 'Noto Nastaliq Urdu', 'Amiri', serif;
+  line-height: 2.2;
+}
+
+.font-serif-heading {
+  font-family: 'Lora', 'Fraunces', Georgia, serif;
+}
+
+.font-sans-ui {
+  font-family: 'Inter', system-ui, sans-serif;
+}
+
+/* Islamic Geometric Background Pattern */
+.islamic-pattern-light {
+  background-color: #FAF7F0;
+  background-image: radial-gradient(#C9A66B 0.75px, transparent 0.75px), radial-gradient(#C9A66B 0.75px, #FAF7F0 0.75px);
+  background-size: 30px 30px;
+  background-position: 0 0, 15px 15px;
+  opacity: 0.95;
+}
+
+.islamic-pattern-dark {
+  background-color: #0F1410;
+  background-image: radial-gradient(#C9A66B 0.5px, transparent 0.5px), radial-gradient(#C9A66B 0.5px, #0F1410 0.5px);
+  background-size: 30px 30px;
+  background-position: 0 0, 15px 15px;
+  opacity: 0.95;
+}
+
+/* Mosque Arch Border / Ornament Styling */
+.arch-card {
+  border-radius: 1rem;
+  position: relative;
+  overflow: hidden;
+}
+
+.arch-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 60px;
+  height: 4px;
+  background: linear-gradient(90deg, transparent, #C9A66B, transparent);
+  border-radius: 2px;
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: rgba(201, 166, 107, 0.05);
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(201, 166, 107, 0.3);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(201, 166, 107, 0.6);
+}
+
+/* Animations */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.35s ease-out forwards;
+}
+
+@keyframes pulseGold {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(201, 166, 107, 0.4); }
+  50% { box-shadow: 0 0 0 8px rgba(201, 166, 107, 0); }
+}
+
+.pulse-gold {
+  animation: pulseGold 2.5s infinite;
+}
