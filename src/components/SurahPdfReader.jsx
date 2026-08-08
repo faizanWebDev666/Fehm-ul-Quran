@@ -18,8 +18,7 @@ import {
   ExternalLink,
   Layers,
   Smartphone,
-  Eye,
-  Sparkles
+  Eye
 } from 'lucide-react';
 
 // Configure PDF.js Worker using unpkg / cdnjs fallback
@@ -57,11 +56,16 @@ export const SurahPdfReader = ({ onOpenUploader }) => {
 
   // Canvas & PDF References
   const canvasRef = useRef(null);
+  const containerRef = useRef(null);
   const pdfDocRef = useRef(null);
   const renderTaskRef = useRef(null);
   const touchStartXRef = useRef(null);
+  const touchStartYRef = useRef(null);
 
   const isCompleted = completedSurahs.includes(currentSurah.id);
+
+  // Render trigger (increment to force canvas re-render on resize)
+  const [renderTick, setRenderTick] = useState(0);
 
   // Load PDF Document when Surah changes
   useEffect(() => {
@@ -74,30 +78,38 @@ export const SurahPdfReader = ({ onOpenUploader }) => {
     setStatusText(t.loadingPdf);
     pdfDocRef.current = null;
 
-    const loadingTask = pdfjsLib.getDocument(pdfPath);
+    if (viewEngine === 'canvas') {
+      const loadingTask = pdfjsLib.getDocument(pdfPath);
 
-    loadingTask.onProgress = (progressData) => {
-      if (isMounted && progressData.total > 0) {
-        const percent = Math.min(95, Math.round((progressData.loaded / progressData.total) * 100));
-        setLoadingProgress(percent);
-      }
-    };
-
-    loadingTask.promise
-      .then((pdfDoc) => {
-        if (!isMounted) return;
-        pdfDocRef.current = pdfDoc;
-        setTotalPages(pdfDoc.numPages);
-        setLoadingProgress(98);
-        setStatusText(t.renderingPage);
-      })
-      .catch((err) => {
-        console.warn('PDF.js Canvas renderer fallback triggered:', err);
-        if (isMounted) {
-          setPdfError(true);
-          setLoading(false);
+      loadingTask.onProgress = (progressData) => {
+        if (isMounted && progressData.total > 0) {
+          const percent = Math.min(95, Math.round((progressData.loaded / progressData.total) * 100));
+          setLoadingProgress(percent);
         }
-      });
+      };
+
+      loadingTask.promise
+        .then((pdfDoc) => {
+          if (!isMounted) return;
+          pdfDocRef.current = pdfDoc;
+          setTotalPages(pdfDoc.numPages);
+          setLoadingProgress(98);
+          setStatusText(t.renderingPage);
+        })
+        .catch((err) => {
+          console.warn('PDF.js Canvas renderer failed, switching to native object mode:', err);
+          if (isMounted) {
+            setPdfError(true);
+            setLoading(false);
+            const isMobile = window.innerWidth < 768;
+            if (isMobile) {
+              setTimeout(() => setViewEngine('object'), 300);
+            }
+          }
+        });
+    } else {
+      setLoading(false);
+    }
 
     return () => {
       isMounted = false;
@@ -105,11 +117,24 @@ export const SurahPdfReader = ({ onOpenUploader }) => {
         renderTaskRef.current.cancel();
       }
     };
-  }, [currentSurah.id, pdfPath]);
+  }, [currentSurah.id, pdfPath, viewEngine]);
+
+  // Window Resize / Orientation Change Handler
+  useEffect(() => {
+    const handleResize = () => {
+      setRenderTick((prev) => prev + 1);
+    };
+    window.addEventListener('resize', handleResize);
+    window.addEventListener('orientationchange', handleResize);
+    return () => {
+      window.removeEventListener('resize', handleResize);
+      window.removeEventListener('orientationchange', handleResize);
+    };
+  }, []);
 
   // Render current page onto Canvas
   useEffect(() => {
-    if (!pdfDocRef.current || pdfError) return;
+    if (!pdfDocRef.current || pdfError || viewEngine !== 'canvas') return;
 
     let isCancelled = false;
 
@@ -126,19 +151,31 @@ export const SurahPdfReader = ({ onOpenUploader }) => {
         if (!canvas) return;
 
         const context = canvas.getContext('2d');
-        
-        // Calculate appropriate scale for mobile vs desktop screen widths
+
+        // Measure actual container width instead of using window.innerWidth
+        const container = containerRef.current;
+        const containerRect = container?.getBoundingClientRect();
+        const availableWidth = containerRect
+          ? containerRect.width - 16
+          : Math.min(window.innerWidth - 32, 600);
+
         const isMobileScreen = window.innerWidth < 640;
-        const containerWidth = isMobileScreen 
-          ? Math.min(window.innerWidth - 32, 600)
-          : Math.min(window.innerWidth - 64, 850);
+        const maxAllowedWidth = isMobileScreen
+          ? Math.min(availableWidth, 720)
+          : Math.min(availableWidth, 900);
 
         const unscaledViewport = page.getViewport({ scale: 1 });
-        const fitScale = (containerWidth / unscaledViewport.width) * (zoomLevel / 100);
+        const fitScale = (maxAllowedWidth / unscaledViewport.width) * (zoomLevel / 100);
         const viewport = page.getViewport({ scale: fitScale });
 
-        canvas.height = viewport.height;
-        canvas.width = viewport.width;
+        // DPR (Device Pixel Ratio) scaling for crisp mobile rendering
+        const dpr = window.devicePixelRatio || 1;
+        canvas.width = Math.floor(viewport.width * dpr);
+        canvas.height = Math.floor(viewport.height * dpr);
+        canvas.style.width = `${Math.floor(viewport.width)}px`;
+        canvas.style.height = `${Math.floor(viewport.height)}px`;
+        canvas.style.maxWidth = '100%';
+        context.setTransform(dpr, 0, 0, dpr, 0, 0);
 
         const renderContext = {
           canvasContext: context,
@@ -154,7 +191,7 @@ export const SurahPdfReader = ({ onOpenUploader }) => {
           setTimeout(() => setLoading(false), 200);
         }
       } catch (err) {
-        if (err?.name !== 'RenderingCancelledException') {
+        if (err?.name !== 'RenderingCancelledException' && err?.message !== 'canvas or context is null') {
           console.error('Error rendering page:', err);
         }
       }
@@ -165,29 +202,35 @@ export const SurahPdfReader = ({ onOpenUploader }) => {
     return () => {
       isCancelled = true;
     };
-  }, [currentPage, zoomLevel, pdfDocRef.current, pdfError]);
+  }, [currentPage, zoomLevel, pdfDocRef.current, pdfError, viewEngine, renderTick]);
 
-  // Touch Swipe Handlers for Mobile
+  // Touch Swipe Handlers for Mobile (with vertical scroll guard)
   const handleTouchStart = (e) => {
-    touchStartXRef.current = e.touches[0].clientX;
+    if (e.touches.length === 1) {
+      touchStartXRef.current = e.touches[0].clientX;
+      touchStartYRef.current = e.touches[0].clientY;
+    }
   };
 
   const handleTouchEnd = (e) => {
-    if (touchStartXRef.current === null) return;
+    if (touchStartXRef.current === null || touchStartYRef.current === null) return;
     const touchEndX = e.changedTouches[0].clientX;
+    const touchEndY = e.changedTouches[0].clientY;
     const deltaX = touchEndX - touchStartXRef.current;
+    const deltaY = touchEndY - touchStartYRef.current;
     touchStartXRef.current = null;
+    touchStartYRef.current = null;
 
-    if (Math.abs(deltaX) > 50) {
+    // Only trigger horizontal swipe if horizontal movement > vertical movement
+    // and minimum swipe threshold met. This prevents interference with vertical scroll.
+    if (Math.abs(deltaX) > 60 && Math.abs(deltaX) > Math.abs(deltaY) * 1.5) {
       if (deltaX < 0) {
-        // Swipe Left -> Next Page (in LTR) / Prev Page (in RTL Urdu)
         if (isUrdu) {
           if (currentPage > 1) setCurrentPage(currentPage - 1);
         } else {
           if (currentPage < totalPages) setCurrentPage(currentPage + 1);
         }
       } else {
-        // Swipe Right -> Prev Page (in LTR) / Next Page (in RTL Urdu)
         if (isUrdu) {
           if (currentPage < totalPages) setCurrentPage(currentPage + 1);
         } else {
@@ -299,6 +342,31 @@ export const SurahPdfReader = ({ onOpenUploader }) => {
               </button>
             </div>
 
+            {/* View Engine Toggle (Critical for Mobile) */}
+            <button
+              onClick={() => {
+                setViewEngine((prev) => (prev === 'canvas' ? 'object' : 'canvas'));
+              }}
+              className={`px-3 py-1.5 rounded-xl border text-xs font-bold flex items-center space-x-1 rtl:space-x-reverse transition-all ${
+                viewEngine === 'canvas'
+                  ? 'bg-[#1B4332] border-[#1B4332] text-white shadow-sm'
+                  : 'bg-[#FAF7F0] dark:bg-[#0F1410] border-[#C9A66B]/30 text-[#1B4332] dark:text-[#C9A66B] hover:bg-[#C9A66B]/15'
+              }`}
+              title={viewEngine === 'canvas' ? t.canvasEngine : t.objectEngine}
+            >
+              {viewEngine === 'canvas' ? (
+                <>
+                  <Smartphone className="w-3.5 h-3.5 text-[#C9A66B]" />
+                  <span className="hidden sm:inline">{t.canvasEngine}</span>
+                </>
+              ) : (
+                <>
+                  <Eye className="w-3.5 h-3.5" />
+                  <span className="hidden sm:inline">{t.objectEngine}</span>
+                </>
+              )}
+            </button>
+
             {/* Action Buttons: Direct Tab, Attach, Download */}
             <div className="flex items-center space-x-2 rtl:space-x-reverse">
               
@@ -342,12 +410,14 @@ export const SurahPdfReader = ({ onOpenUploader }) => {
 
       {/* Main Display Container */}
       <div
-        className="relative min-h-[550px] sm:min-h-[650px] bg-[#0A0E0B] rounded-3xl border-2 border-[#C9A66B]/40 shadow-2xl overflow-hidden flex flex-col items-center justify-center p-2 sm:p-4"
+        ref={containerRef}
+        className="relative min-h-[550px] sm:min-h-[650px] bg-[#0A0E0B] rounded-3xl border-2 border-[#C9A66B]/40 shadow-2xl overflow-hidden flex flex-col items-center justify-center p-2 sm:p-4 touch-manipulation"
+        style={{ touchAction: 'pan-y pinch-zoom' }}
         onTouchStart={handleTouchStart}
         onTouchEnd={handleTouchEnd}
       >
-        {/* Animated Islamic Preloader Overlay */}
-        {loading && (
+        {/* Animated Islamic Preloader Overlay (only for canvas engine) */}
+        {loading && viewEngine === 'canvas' && (
           <PdfPreloader
             surah={currentSurah}
             progress={loadingProgress}
@@ -356,31 +426,60 @@ export const SurahPdfReader = ({ onOpenUploader }) => {
           />
         )}
 
-        {/* Universal PDF View Renderer */}
-        {!pdfError ? (
-          viewEngine === 'canvas' ? (
-            <div className="w-full h-full flex flex-col items-center justify-center overflow-auto py-2">
-              <canvas
-                ref={canvasRef}
-                className="max-w-full rounded-xl shadow-2xl bg-white border border-[#C9A66B]/30 transition-all duration-150"
-              />
-              <div className="mt-3 text-[11px] font-mono text-[#EDEAE0]/60 flex items-center space-x-1.5 rtl:space-x-reverse">
-                <Smartphone className="w-3.5 h-3.5 text-[#C9A66B]" />
-                <span>{t.swipeHint}</span>
-              </div>
-            </div>
-          ) : (
+        {/* Universal PDF View Renderer
+            - Object engine runs independently of canvas errors
+            - Canvas engine shows Fallback only on its own errors */}
+        {viewEngine === 'object' ? (
+          <div className="w-full h-full flex flex-col items-center justify-center">
             <object
               data={`${pdfPath}#page=${currentPage}`}
               type="application/pdf"
-              className="w-full min-h-[600px] rounded-xl shadow-inner bg-white"
-              onError={() => setPdfError(true)}
+              className="w-full min-h-[550px] sm:min-h-[650px] rounded-xl shadow-inner bg-white"
+              onError={(e) => {
+                const obj = e.currentTarget;
+                const children = obj?.children;
+                if (children && children.length === 0) {
+                  setPdfError(true);
+                }
+              }}
             >
-              <FallbackCard surah={currentSurah} pdfPath={pdfPath} onOpenUploader={onOpenUploader} language={language} t={t} />
+              <FallbackCard
+                surah={currentSurah}
+                pdfPath={pdfPath}
+                onOpenUploader={onOpenUploader}
+                language={language}
+                t={t}
+                onTryNativeMode={() => setViewEngine('canvas')}
+              />
             </object>
-          )
+            <div className="mt-3 text-[11px] font-mono text-[#EDEAE0]/60 flex items-center space-x-1.5 rtl:space-x-reverse px-2 text-center">
+              <Layers className="w-3.5 h-3.5 text-[#C9A66B]" />
+              <span>{t.objectEngine} • {t.openInNewTab}</span>
+            </div>
+          </div>
+        ) : !pdfError ? (
+          <div className="w-full h-full flex flex-col items-center justify-center overflow-auto py-2">
+            <canvas
+              ref={canvasRef}
+              className="max-w-full rounded-xl shadow-2xl bg-white border border-[#C9A66B]/30 transition-all duration-150"
+            />
+            <div className="mt-3 text-[11px] font-mono text-[#EDEAE0]/60 flex items-center space-x-1.5 rtl:space-x-reverse px-2 text-center">
+              <Smartphone className="w-3.5 h-3.5 text-[#C9A66B]" />
+              <span>{t.swipeHint}</span>
+            </div>
+          </div>
         ) : (
-          <FallbackCard surah={currentSurah} pdfPath={pdfPath} onOpenUploader={onOpenUploader} language={language} t={t} />
+          <FallbackCard
+            surah={currentSurah}
+            pdfPath={pdfPath}
+            onOpenUploader={onOpenUploader}
+            language={language}
+            t={t}
+            onTryNativeMode={() => {
+              setPdfError(false);
+              setViewEngine('object');
+            }}
+          />
         )}
       </div>
 
@@ -389,7 +488,7 @@ export const SurahPdfReader = ({ onOpenUploader }) => {
 };
 
 // Fallback Card component when local/remote PDF is missing or fails
-const FallbackCard = ({ surah, pdfPath, onOpenUploader, language, t }) => {
+const FallbackCard = ({ surah, pdfPath, onOpenUploader, language, t, onTryNativeMode }) => {
   const isUrdu = language === 'urdu';
   return (
     <div
@@ -414,6 +513,16 @@ const FallbackCard = ({ surah, pdfPath, onOpenUploader, language, t }) => {
       </div>
 
       <div className="flex flex-wrap items-center justify-center gap-3 pt-2">
+        {onTryNativeMode && (
+          <button
+            onClick={onTryNativeMode}
+            className="px-5 py-2.5 rounded-xl bg-[#B0693F] hover:bg-[#965732] text-white font-bold text-xs shadow-md inline-flex items-center space-x-2 rtl:space-x-reverse transition-all"
+          >
+            <Eye className="w-4 h-4" />
+            <span>{isUrdu ? 'براؤزر موڈ میں کوشش کریں' : t.objectEngine}</span>
+          </button>
+        )}
+
         <button
           onClick={onOpenUploader}
           className="px-5 py-2.5 rounded-xl bg-[#1B4332] hover:bg-[#0D3B33] text-white font-bold text-xs shadow-md inline-flex items-center space-x-2 rtl:space-x-reverse transition-all"
