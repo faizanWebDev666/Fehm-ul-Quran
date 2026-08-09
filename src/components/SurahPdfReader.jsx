@@ -239,29 +239,41 @@ export const SurahPdfReader = ({ onOpenUploader }) => {
 
         const context = canvas.getContext('2d');
 
-        // Measure actual container width instead of using window.innerWidth
         const container = containerRef.current;
         const containerRect = container?.getBoundingClientRect();
+        const containerStyle = container ? window.getComputedStyle(container) : null;
+        const paddingLeft = containerStyle ? parseFloat(containerStyle.paddingLeft) || 0 : 8;
+        const paddingRight = containerStyle ? parseFloat(containerStyle.paddingRight) || 0 : 8;
+        const horizontalPadding = paddingLeft + paddingRight;
+
         const availableWidth = containerRect
-          ? containerRect.width - 16
+          ? Math.max(280, containerRect.width - horizontalPadding)
           : Math.min(window.innerWidth - 32, 600);
 
-        const isMobileScreen = window.innerWidth < 640;
-        const maxAllowedWidth = isMobileScreen
-          ? Math.min(availableWidth, 720)
-          : Math.min(availableWidth, 900);
+        const viewportHeight = window.innerHeight;
+        const containerHeight = containerRect ? containerRect.height : viewportHeight * 0.7;
+        const paddingTop = containerStyle ? parseFloat(containerStyle.paddingTop) || 0 : 8;
+        const paddingBottom = containerStyle ? parseFloat(containerStyle.paddingBottom) || 0 : 8;
+        const verticalPadding = paddingTop + paddingBottom;
+        const engineIndicatorHeight = 32;
+        const availableHeight = Math.max(320, containerHeight - verticalPadding - engineIndicatorHeight);
 
         const unscaledViewport = page.getViewport({ scale: 1 });
-        const fitScale = (maxAllowedWidth / unscaledViewport.width) * (zoomLevel / 100);
+
+        const userScale = zoomLevel / 100;
+        const fitWidthScale = availableWidth / unscaledViewport.width;
+        const fitHeightScale = availableHeight / unscaledViewport.height;
+        const fitScale = Math.min(fitWidthScale, fitHeightScale) * userScale;
+
         const viewport = page.getViewport({ scale: fitScale });
 
-        // DPR (Device Pixel Ratio) scaling for crisp mobile rendering
         const dpr = window.devicePixelRatio || 1;
         canvas.width = Math.floor(viewport.width * dpr);
         canvas.height = Math.floor(viewport.height * dpr);
         canvas.style.width = `${Math.floor(viewport.width)}px`;
         canvas.style.height = `${Math.floor(viewport.height)}px`;
         canvas.style.maxWidth = '100%';
+        canvas.style.maxHeight = `${availableHeight}px`;
         context.setTransform(dpr, 0, 0, dpr, 0, 0);
 
         const renderContext = {
@@ -521,89 +533,74 @@ export const SurahPdfReader = ({ onOpenUploader }) => {
       {/* Main Display Container */}
       <div
         ref={containerRef}
-        className="relative w-full min-w-0 min-h-[420px] h-[70vh] max-h-[850px] bg-[#0A0E0B] rounded-3xl border-2 border-[#C9A66B]/40 shadow-2xl overflow-hidden flex flex-col items-center justify-center p-2 sm:p-4 touch-manipulation"
+        className="relative w-full min-w-0 min-h-[420px] h-[65dvh] sm:h-[70dvh] max-h-[900px] bg-[#0A0E0B] rounded-3xl border-2 border-[#C9A66B]/40 shadow-2xl overflow-hidden flex flex-col items-stretch justify-start p-1.5 sm:p-3 md:p-4 touch-manipulation"
         style={{ touchAction: 'pan-y pinch-zoom' }}
         onTouchStart={handleTouchStart}
         onTouchEnd={handleTouchEnd}
       >
-        {/* 🏷️ LOADING INFO BANNER (native engine)
-            Shows above the viewer ONLY while native iframe is initializing.
-            This answers the user's exact concern: "between time is much and no
-            preloader or information like file is opening etc show"  */}
-        {nativeLoading && viewEngine === 'object' && (
-          <div className="w-full mb-2.5 rounded-2xl bg-[#1B4332]/95 border border-[#C9A66B]/30 px-3.5 py-2.5 shadow-inner animate-pulse">
-            <div className="flex items-center space-x-3 rtl:space-x-reverse">
-              <div className="relative">
-                <div className="w-8 h-8 rounded-full bg-[#C9A66B]/15 border border-[#C9A66B]/30 flex items-center justify-center">
-                  <FileText className="w-4 h-4 text-[#C9A66B]" />
-                </div>
-                <div className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-emerald-400 animate-ping" />
-                <div className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-emerald-500" />
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className={`text-[11px] sm:text-xs font-bold text-[#FAF7F0] truncate ${isUrdu ? 'font-urdu' : ''}`}>
-                  {statusText || (isUrdu ? 'فائل کھول رہا ہے…' : 'Opening PDF file…')}
-                </p>
-                <div className="mt-1.5 h-1.5 w-full rounded-full bg-[#C9A66B]/15 overflow-hidden">
-                  <div
-                    className="h-full rounded-full bg-gradient-to-r from-[#C9A66B] to-[#E8D5A8] transition-all duration-700 ease-out"
-                    style={{ width: `${loadingProgress}%` }}
-                  />
-                </div>
-              </div>
-              <div className="text-right rtl:text-left flex-shrink-0">
-                <div className="text-[10px] sm:text-xs font-mono font-bold text-[#C9A66B] tabular-nums">
-                  {loadingProgress}%
-                </div>
-              </div>
-            </div>
+        {/* Animated Islamic Preloader Overlay (only for canvas engine)
+            Absolute positioned to cover entire container on top of content */}
+        {loading && viewEngine === 'canvas' && (
+          <div className="absolute inset-0 z-20">
+            <PdfPreloader
+              surah={currentSurah}
+              progress={loadingProgress}
+              statusText={statusText}
+              language={language}
+            />
           </div>
         )}
 
-        {/* Animated Islamic Preloader Overlay (only for canvas engine) */}
-        {loading && viewEngine === 'canvas' && (
-          <PdfPreloader
-            surah={currentSurah}
-            progress={loadingProgress}
-            statusText={statusText}
-            language={language}
-          />
-        )}
-
-        {/* Universal PDF View Renderer
-            - Native engine on mobile uses IFRAME (95%+ mobile support)
-            - Canvas engine works on desktop when user opts in
-
-            FALLBACK CHAIN (production-grade, never break):
-            1. <iframe>   →  Primary, best support on Android Chrome / iOS Safari
-            2. <object>   →  Nested fallback inside iframe for older browsers
-            3. FallbackCard  →  Last-resort guidance (new-tab as primary action)
-                                only shown when both iframe + object truly fail
-
-            PRODUCTION NOTE: We NEVER show "Open in New Tab" as a primary CTA above
-            the viewer. Users always have the External Link icon up in the toolbar.
-             */}
         {viewEngine === 'object' ? (
-          <div className="w-full h-full flex flex-col items-center justify-start gap-2">
-            {/* Native IFRAME Viewer (primary, 95%+ mobile browser support) */}
-            <div className="relative w-full">
-              {/* Elegant skeleton + LIVE STATUS inside while native engine initializing
-                  (keeps user engaged, page does not look frozen) */}
+          <div className="w-full h-full min-h-0 flex flex-col items-stretch justify-start flex-1">
+            {/* Loading Info Banner */}
+            {nativeLoading && viewEngine === 'object' && (
+              <div className="w-full mb-1.5 sm:mb-2.5 rounded-2xl bg-[#1B4332]/95 border border-[#C9A66B]/30 px-3.5 py-2.5 shadow-inner animate-pulse flex-shrink-0">
+                <div className="flex items-center space-x-3 rtl:space-x-reverse">
+                  <div className="relative">
+                    <div className="w-8 h-8 rounded-full bg-[#C9A66B]/15 border border-[#C9A66B]/30 flex items-center justify-center">
+                      <FileText className="w-4 h-4 text-[#C9A66B]" />
+                    </div>
+                    <div className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-emerald-400 animate-ping" />
+                    <div className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-emerald-500" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className={`text-[11px] sm:text-xs font-bold text-[#FAF7F0] truncate ${isUrdu ? 'font-urdu' : ''}`}>
+                      {statusText || (isUrdu ? 'فائل کھول رہا ہے…' : 'Opening PDF file…')}
+                    </p>
+                    <div className="mt-1.5 h-1.5 w-full rounded-full bg-[#C9A66B]/15 overflow-hidden">
+                      <div
+                        className="h-full rounded-full bg-gradient-to-r from-[#C9A66B] to-[#E8D5A8] transition-all duration-700 ease-out"
+                        style={{ width: `${loadingProgress}%` }}
+                      />
+                    </div>
+                  </div>
+                  <div className="text-right rtl:text-left flex-shrink-0">
+                    <div className="text-[10px] sm:text-xs font-mono font-bold text-[#C9A66B] tabular-nums">
+                      {loadingProgress}%
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Native IFRAME Viewer (primary, 95%+ mobile browser support)
+                flex-1 + min-h-0 is CRITICAL: forces the iframe to take remaining
+                vertical space in the flex column and respects parent bounds. */}
+            <div className="relative w-full flex-1 min-h-0 flex flex-col rounded-2xl overflow-hidden">
               {nativeLoading && (
-                <div className="absolute inset-0 z-10 pointer-events-none flex flex-col items-center justify-center rounded-2xl overflow-hidden bg-gradient-to-br from-[#0A0E0B] via-[#11180F] to-[#0A0E0B] p-4 sm:p-8">
-                  <div className="w-full h-full max-w-3xl flex flex-col items-center justify-center gap-5">
-                    {/* Spinner */}
+                <div className="absolute inset-0 z-10 pointer-events-none flex flex-col items-center justify-center bg-gradient-to-br from-[#0A0E0B] via-[#11180F] to-[#0A0E0B] p-2 sm:p-4">
+                  <div className="w-full h-full max-w-3xl flex flex-col items-center justify-center gap-3 sm:gap-5">
                     <div className="relative">
-                      <div className="w-16 h-16 rounded-full border-4 border-[#C9A66B]/15" />
-                      <div className="absolute inset-0 w-16 h-16 rounded-full border-4 border-transparent border-t-[#C9A66B] animate-spin" />
+                      <div className="w-12 h-12 sm:w-16 sm:h-16 rounded-full border-4 border-[#C9A66B]/15" />
+                      <div className="absolute inset-0 w-12 h-12 sm:w-16 sm:h-16 rounded-full border-4 border-transparent border-t-[#C9A66B] animate-spin" />
                       <div className="absolute inset-0 flex items-center justify-center">
-                        <Layers className="w-6 h-6 text-[#C9A66B]" />
+                        <Layers className="w-4 h-4 sm:w-6 sm:h-6 text-[#C9A66B]" />
                       </div>
                     </div>
 
-                    {/* Live status + progress percentage (this is the KEY fix the user asked for!) */}
-                    <div className="w-full max-w-md space-y-2 text-center px-4">
-                      <p className={`text-xs sm:text-sm font-bold text-[#EDEAE0] ${isUrdu ? 'font-urdu' : ''}`}>
+                    <div className="w-full max-w-md space-y-2 text-center px-2 sm:px-4">
+                      <p className={`text-[11px] sm:text-sm font-bold text-[#EDEAE0] ${isUrdu ? 'font-urdu' : ''}`}>
                         {statusText || (isUrdu ? 'فائل کھول رہا ہے…' : 'Opening PDF file…')}
                       </p>
                       <div className="h-2 w-full rounded-full bg-[#C9A66B]/10 overflow-hidden">
@@ -617,8 +614,7 @@ export const SurahPdfReader = ({ onOpenUploader }) => {
                       </div>
                     </div>
 
-                    {/* Fake page grid for visual depth perception */}
-                    <div className="grid grid-cols-[repeat(14,1fr)] gap-1 w-full opacity-40 flex-1">
+                    <div className="grid grid-cols-[repeat(14,1fr)] gap-1 w-full opacity-40 flex-1 min-h-[80px] sm:min-h-0">
                       {Array.from({ length: 56 }).map((_, i) => (
                         <div
                           key={i}
@@ -631,37 +627,27 @@ export const SurahPdfReader = ({ onOpenUploader }) => {
                 </div>
               )}
 
-              {/*
-                ★ PRIMARY RENDERER: <iframe>  — 95%+ mobile browsers support inline PDF via iframe
-                Chrome/Android, Safari/iOS, Samsung Internet, Firefox all have built-in PDF.js
-                viewers specifically for iframe-loaded PDFs.
-              */}
               <iframe
-                src={`${pdfPath}#page=${currentPage}&navpanes=0&scrollbar=0&toolbar=1&view=FitH`}
+                src={`${pdfPath}#page=${currentPage}&navpanes=0&scrollbar=0&toolbar=1&view=FitBH`}
                 title={`Surah ${currentSurah.nameEnglish} PDF`}
                 loading="lazy"
                 referrerPolicy="no-referrer"
                 allow="fullscreen"
-                className={`w-full h-full min-h-0 rounded-2xl bg-white shadow-inner border border-[#C9A66B]/25 transition-opacity duration-500 ${
+                className={`pdf-viewer-iframe w-full h-full min-h-0 flex-1 rounded-2xl bg-white shadow-inner border border-[#C9A66B]/25 transition-opacity duration-500 ${
                   nativeLoading ? 'opacity-0' : 'opacity-100'
                 }`}
                 onLoad={() => {
-                  // When iframe actually finishes: push to 100% immediately and reveal viewer
                   setLoadingProgress(100);
                   setNativeLoading(false);
                 }}
                 onError={() => {
-                  // If iframe fails, browser will render its inner <object> fallback DOM,
-                  // which itself has a final FallbackCard inside. We keep the graceful
-                  // skeleton until the inner elements also declare failure.
                   setNativeLoading(false);
                 }}
               >
-                {/* Fallback 1: <object> — older browsers where iframe PDF fails */}
                 <object
                   data={`${pdfPath}#page=${currentPage}&navpanes=0&scrollbar=0&toolbar=1`}
                   type="application/pdf"
-                  className={`w-full h-full min-h-0 rounded-2xl bg-white shadow-inner border border-[#C9A66B]/25 transition-opacity duration-500 ${
+                  className={`pdf-viewer-object w-full h-full min-h-0 flex-1 rounded-2xl bg-white shadow-inner border border-[#C9A66B]/25 transition-opacity duration-500 ${
                     nativeLoading ? 'opacity-0' : 'opacity-100'
                   }`}
                   onLoad={() => setNativeLoading(false)}
@@ -669,15 +655,11 @@ export const SurahPdfReader = ({ onOpenUploader }) => {
                     setNativeLoading(false);
                     const obj = e.currentTarget;
                     const children = obj?.children;
-                    // Only set outer pdfError if <object> ALSO failed to render
-                    // (i.e. no FallbackCard auto-rendered children inside it)
                     if (children && children.length === 0) {
                       setPdfError(true);
                     }
                   }}
                 >
-                  {/* Final fallback: neither iframe nor object supported,
-                      show user-friendly card with New Tab as primary action. */}
                   <FallbackCard
                     surah={currentSurah}
                     pdfPath={pdfPath}
@@ -690,37 +672,38 @@ export const SurahPdfReader = ({ onOpenUploader }) => {
               </iframe>
             </div>
 
-            {/* Subtle engine indicator at BOTTOM (never on top) */}
             {!nativeLoading && !pdfError && (
-              <div className="pt-2 text-[11px] font-mono text-[#EDEAE0]/40 flex items-center space-x-1.5 rtl:space-x-reverse px-2 text-center select-none">
+              <div className="pt-1.5 sm:pt-2 text-[11px] font-mono text-[#EDEAE0]/40 flex items-center justify-center space-x-1.5 rtl:space-x-reverse px-2 text-center select-none flex-shrink-0">
                 <Layers className="w-3 h-3 text-[#C9A66B]/50" />
                 <span>{t.objectEngine} • {t.swipeHint}</span>
               </div>
             )}
           </div>
         ) : !pdfError ? (
-          <div className="w-full h-full flex flex-col items-center justify-center overflow-auto py-2">
+          <div className="w-full h-full min-h-0 flex flex-col items-center justify-center overflow-auto py-1 sm:py-2 flex-1">
             <canvas
               ref={canvasRef}
-              className="max-w-full rounded-xl shadow-2xl bg-white border border-[#C9A66B]/30 transition-all duration-150"
+              className="pdf-canvas max-w-full max-h-full rounded-xl shadow-2xl bg-white border border-[#C9A66B]/30 transition-all duration-150 object-contain"
             />
-            <div className="mt-3 text-[11px] font-mono text-[#EDEAE0]/60 flex items-center space-x-1.5 rtl:space-x-reverse px-2 text-center">
+            <div className="mt-2 sm:mt-3 text-[11px] font-mono text-[#EDEAE0]/60 flex items-center space-x-1.5 rtl:space-x-reverse px-2 text-center">
               <Smartphone className="w-3.5 h-3.5 text-[#C9A66B]" />
               <span>{t.swipeHint}</span>
             </div>
           </div>
         ) : (
-          <FallbackCard
-            surah={currentSurah}
-            pdfPath={pdfPath}
-            language={language}
-            t={t}
-            onTryNativeMode={() => {
-              setPdfError(false);
-              setViewEngine('object');
-            }}
-            preferNewTab
-          />
+          <div className="w-full h-full min-h-0 flex items-center justify-center overflow-auto py-2">
+            <FallbackCard
+              surah={currentSurah}
+              pdfPath={pdfPath}
+              language={language}
+              t={t}
+              onTryNativeMode={() => {
+                setPdfError(false);
+                setViewEngine('object');
+              }}
+              preferNewTab
+            />
+          </div>
         )}
       </div>
 

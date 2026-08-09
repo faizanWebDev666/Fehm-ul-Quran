@@ -122,3 +122,47 @@
 .pulse-gold {
   animation: pulseGold 2.5s infinite;
 }
+
+/* Responsive PDF Viewer Optimizations */
+@supports (height: 100dvh) {
+  .pdf-container-dvh {
+    height: 70dvh;
+  }
+}
+
+/* Ensure iframe/object PDF viewers respect boundaries and don't overflow */
+.pdf-viewer-iframe,
+.pdf-viewer-object {
+  display: block;
+  box-sizing: border-box;
+  border: none;
+  outline: none;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+}
+
+/* Prevent PDF.js canvas from being squished or stretched */
+.pdf-canvas {
+  display: block;
+  height: auto;
+  image-rendering: -webkit-optimize-contrast;
+  image-rendering: crisp-edges;
+}
+
+/* iOS Safari specific: prevent iframe from expanding beyond container */
+@supports (-webkit-touch-callout: none) {
+  .pdf-viewer-iframe {
+    min-height: 0;
+    width: 1px;
+    min-width: 100%;
+  }
+}
+
+/* Safe area padding for mobile devices with notch/home indicator */
+.safe-area-pb {
+  padding-bottom: max(0.5rem, env(safe-area-inset-bottom));
+}
+
+.safe-area-pt {
+  padding-top: max(0.5rem, env(safe-area-inset-top));
+}
