@@ -206,20 +206,30 @@ export const SurahPdfReader = ({ onOpenUploader }) => {
     };
   }, [currentSurah.id, pdfPath, viewEngine]);
 
-  // Window Resize / Orientation Change Handler
+  // Window Resize / Container Resize Observer Handler
   useEffect(() => {
     const handleResize = () => {
       setRenderTick((prev) => prev + 1);
     };
     window.addEventListener('resize', handleResize);
     window.addEventListener('orientationchange', handleResize);
+
+    let resizeObserver;
+    if (containerRef.current && typeof ResizeObserver !== 'undefined') {
+      resizeObserver = new ResizeObserver(() => {
+        setRenderTick((prev) => prev + 1);
+      });
+      resizeObserver.observe(containerRef.current);
+    }
+
     return () => {
       window.removeEventListener('resize', handleResize);
       window.removeEventListener('orientationchange', handleResize);
+      if (resizeObserver) resizeObserver.disconnect();
     };
   }, []);
 
-  // Render current page onto Canvas
+  // Render current page onto Canvas (fully responsive with A4 aspect ratio preservation)
   useEffect(() => {
     if (!pdfDocRef.current || pdfError || viewEngine !== 'canvas') return;
 
@@ -242,38 +252,37 @@ export const SurahPdfReader = ({ onOpenUploader }) => {
         const container = containerRef.current;
         const containerRect = container?.getBoundingClientRect();
         const containerStyle = container ? window.getComputedStyle(container) : null;
-        const paddingLeft = containerStyle ? parseFloat(containerStyle.paddingLeft) || 0 : 8;
-        const paddingRight = containerStyle ? parseFloat(containerStyle.paddingRight) || 0 : 8;
+        const paddingLeft = containerStyle ? parseFloat(containerStyle.paddingLeft) || 0 : 12;
+        const paddingRight = containerStyle ? parseFloat(containerStyle.paddingRight) || 0 : 12;
         const horizontalPadding = paddingLeft + paddingRight;
 
-        const availableWidth = containerRect
-          ? Math.max(280, containerRect.width - horizontalPadding)
-          : Math.min(window.innerWidth - 32, 600);
+        const containerWidth = containerRect
+          ? Math.max(260, containerRect.width - horizontalPadding)
+          : Math.min(window.innerWidth - 32, 780);
 
-        const viewportHeight = window.innerHeight;
-        const containerHeight = containerRect ? containerRect.height : viewportHeight * 0.7;
-        const paddingTop = containerStyle ? parseFloat(containerStyle.paddingTop) || 0 : 8;
-        const paddingBottom = containerStyle ? parseFloat(containerStyle.paddingBottom) || 0 : 8;
-        const verticalPadding = paddingTop + paddingBottom;
-        const engineIndicatorHeight = 32;
-        const availableHeight = Math.max(320, containerHeight - verticalPadding - engineIndicatorHeight);
+        // Max readable page width capping for laptop/desktop vs tablet/mobile
+        const winWidth = typeof window !== 'undefined' ? window.innerWidth : 1200;
+        let maxAllowedWidth = containerWidth;
+        if (winWidth >= 1024) {
+          maxAllowedWidth = Math.min(containerWidth, 780);
+        } else if (winWidth >= 640) {
+          maxAllowedWidth = Math.min(containerWidth, 720);
+        }
 
         const unscaledViewport = page.getViewport({ scale: 1 });
-
         const userScale = zoomLevel / 100;
-        const fitWidthScale = availableWidth / unscaledViewport.width;
-        const fitHeightScale = availableHeight / unscaledViewport.height;
-        const fitScale = Math.min(fitWidthScale, fitHeightScale) * userScale;
 
-        const viewport = page.getViewport({ scale: fitScale });
+        // Calculate scale to fit maxAllowedWidth nicely while preserving exact aspect ratio
+        const widthScale = (maxAllowedWidth / unscaledViewport.width) * userScale;
+        const viewport = page.getViewport({ scale: widthScale });
 
-        const dpr = window.devicePixelRatio || 1;
+        const dpr = Math.max(window.devicePixelRatio || 1, 1.5);
         canvas.width = Math.floor(viewport.width * dpr);
         canvas.height = Math.floor(viewport.height * dpr);
         canvas.style.width = `${Math.floor(viewport.width)}px`;
         canvas.style.height = `${Math.floor(viewport.height)}px`;
         canvas.style.maxWidth = '100%';
-        canvas.style.maxHeight = `${availableHeight}px`;
+        canvas.style.height = 'auto';
         context.setTransform(dpr, 0, 0, dpr, 0, 0);
 
         const renderContext = {
@@ -533,7 +542,7 @@ export const SurahPdfReader = ({ onOpenUploader }) => {
       {/* Main Display Container */}
       <div
         ref={containerRef}
-        className="relative w-full min-w-0 min-h-[420px] h-[65dvh] sm:h-[70dvh] max-h-[900px] bg-[#0A0E0B] rounded-3xl border-2 border-[#C9A66B]/40 shadow-2xl overflow-hidden flex flex-col items-stretch justify-start p-1.5 sm:p-3 md:p-4 touch-manipulation"
+        className="relative w-full min-w-0 min-h-[500px] sm:min-h-[600px] max-h-[85vh] bg-[#0A0E0B] rounded-3xl border-2 border-[#C9A66B]/40 shadow-2xl overflow-y-auto overflow-x-auto flex flex-col items-center justify-start p-2.5 sm:p-4 md:p-6 touch-manipulation"
         style={{ touchAction: 'pan-y pinch-zoom' }}
         onTouchStart={handleTouchStart}
         onTouchEnd={handleTouchEnd}
@@ -552,7 +561,7 @@ export const SurahPdfReader = ({ onOpenUploader }) => {
         )}
 
         {viewEngine === 'object' ? (
-          <div className="w-full h-full min-h-0 flex flex-col items-stretch justify-start flex-1">
+          <div className="w-full h-full min-h-[480px] flex flex-col items-stretch justify-start flex-1">
             {/* Loading Info Banner */}
             {nativeLoading && viewEngine === 'object' && (
               <div className="w-full mb-1.5 sm:mb-2.5 rounded-2xl bg-[#1B4332]/95 border border-[#C9A66B]/30 px-3.5 py-2.5 shadow-inner animate-pulse flex-shrink-0">
@@ -587,7 +596,7 @@ export const SurahPdfReader = ({ onOpenUploader }) => {
             {/* Native IFRAME Viewer (primary, 95%+ mobile browser support)
                 flex-1 + min-h-0 is CRITICAL: forces the iframe to take remaining
                 vertical space in the flex column and respects parent bounds. */}
-            <div className="relative w-full flex-1 min-h-0 flex flex-col rounded-2xl overflow-hidden">
+            <div className="relative w-full flex-1 min-h-[440px] flex flex-col rounded-2xl overflow-hidden">
               {nativeLoading && (
                 <div className="absolute inset-0 z-10 pointer-events-none flex flex-col items-center justify-center bg-gradient-to-br from-[#0A0E0B] via-[#11180F] to-[#0A0E0B] p-2 sm:p-4">
                   <div className="w-full h-full max-w-3xl flex flex-col items-center justify-center gap-3 sm:gap-5">
@@ -633,7 +642,7 @@ export const SurahPdfReader = ({ onOpenUploader }) => {
                 loading="lazy"
                 referrerPolicy="no-referrer"
                 allow="fullscreen"
-                className={`pdf-viewer-iframe w-full h-full min-h-0 flex-1 rounded-2xl bg-white shadow-inner border border-[#C9A66B]/25 transition-opacity duration-500 ${
+                className={`pdf-viewer-iframe w-full h-full min-h-[440px] flex-1 rounded-2xl bg-white shadow-inner border border-[#C9A66B]/25 transition-opacity duration-500 ${
                   nativeLoading ? 'opacity-0' : 'opacity-100'
                 }`}
                 onLoad={() => {
@@ -647,7 +656,7 @@ export const SurahPdfReader = ({ onOpenUploader }) => {
                 <object
                   data={`${pdfPath}#page=${currentPage}&navpanes=0&scrollbar=0&toolbar=1`}
                   type="application/pdf"
-                  className={`pdf-viewer-object w-full h-full min-h-0 flex-1 rounded-2xl bg-white shadow-inner border border-[#C9A66B]/25 transition-opacity duration-500 ${
+                  className={`pdf-viewer-object w-full h-full min-h-[440px] flex-1 rounded-2xl bg-white shadow-inner border border-[#C9A66B]/25 transition-opacity duration-500 ${
                     nativeLoading ? 'opacity-0' : 'opacity-100'
                   }`}
                   onLoad={() => setNativeLoading(false)}
@@ -680,12 +689,12 @@ export const SurahPdfReader = ({ onOpenUploader }) => {
             )}
           </div>
         ) : !pdfError ? (
-          <div className="w-full h-full min-h-0 flex flex-col items-center justify-center overflow-auto py-1 sm:py-2 flex-1">
+          <div className="w-full min-h-0 flex flex-col items-center justify-start overflow-y-auto overflow-x-auto py-2 flex-1 my-auto">
             <canvas
               ref={canvasRef}
-              className="pdf-canvas max-w-full max-h-full rounded-xl shadow-2xl bg-white border border-[#C9A66B]/30 transition-all duration-150 object-contain"
+              className="pdf-canvas max-w-full rounded-2xl shadow-2xl bg-white border border-[#C9A66B]/35 transition-all duration-200 block shrink-0 my-auto"
             />
-            <div className="mt-2 sm:mt-3 text-[11px] font-mono text-[#EDEAE0]/60 flex items-center space-x-1.5 rtl:space-x-reverse px-2 text-center">
+            <div className="mt-3 text-[11px] font-mono text-[#EDEAE0]/60 flex items-center space-x-1.5 rtl:space-x-reverse px-2 text-center shrink-0 select-none">
               <Smartphone className="w-3.5 h-3.5 text-[#C9A66B]" />
               <span>{t.swipeHint}</span>
             </div>

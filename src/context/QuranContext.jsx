@@ -39,7 +39,7 @@ export const QuranProvider = ({ children }) => {
     return saved ? JSON.parse(saved) : [];
   });
 
-  // Custom PDF paths or uploaded URLs per Surah { 1: "/pdfs/surah_001.pdf" }
+  // Custom PDF paths or uploaded URLs per Surah
   const [surahPdfs, setSurahPdfs] = useState(() => {
     const saved = localStorage.getItem('fehm_surah_pdfs');
     const initial = {};
@@ -50,13 +50,10 @@ export const QuranProvider = ({ children }) => {
 
     const savedPdfs = JSON.parse(saved);
     const migratedPdfs = { ...savedPdfs };
-    const bundledDefaults = {
-      1: '/pdfs/surah_001.pdf',
-      2: '/pdfs/surah_002.pdf',
-    };
 
-    Object.entries(bundledDefaults).forEach(([surahId, oldPath]) => {
-      if (migratedPdfs[surahId] === oldPath) {
+    // Automatically migrate any legacy '/pdfs/' paths to the correct '/surah/' paths
+    Object.entries(migratedPdfs).forEach(([surahId, savedPath]) => {
+      if (typeof savedPath === 'string' && savedPath.startsWith('/pdfs/')) {
         migratedPdfs[surahId] = initial[surahId];
       }
     });

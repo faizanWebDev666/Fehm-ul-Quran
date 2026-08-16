@@ -299,7 +299,7 @@ const FallbackPdfCard = ({ surah, pdfPath, onOpenUploader, openSurahText }) => {
 
       <div className="pt-4 border-t border-gray-200 dark:border-gray-800 text-xs text-gray-500 flex items-center justify-center space-x-2 rtl:space-x-reverse">
         <Info className="w-4 h-4 text-[#C9A66B]" />
-        <span>آئندہ جب آپ /public/pdfs/ میں فائل رکھیں گے، پی ڈی ایف یہی خودکار ظاہر ہوگی۔</span>
+        <span>آئندہ جب آپ /public/surah/ میں فائل رکھیں گے، پی ڈی ایف یہی خودکار ظاہر ہوگی۔</span>
       </div>
     </div>
   );
