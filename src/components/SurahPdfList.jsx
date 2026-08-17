@@ -126,6 +126,23 @@ export const SurahPdfList = () => {
   const [filterType, setFilterType] = useState('all'); // 'all', 'Makki', 'Madani', 'completed'
   const [mobilePdfPreloader, setMobilePdfPreloader] = useState(null);
 
+  // A same-tab PDF navigation can put this page in the browser's back/forward cache.
+  // Clear the temporary loading overlay when the user returns to the library.
+  useEffect(() => {
+    const clearMobilePreloader = () => setMobilePdfPreloader(null);
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') clearMobilePreloader();
+    };
+
+    window.addEventListener('pageshow', clearMobilePreloader);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      window.removeEventListener('pageshow', clearMobilePreloader);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, []);
+
   const completedCount = completedSurahs.length;
   // Ayah slider state
   const [currentSlide, setCurrentSlide] = useState(0);
