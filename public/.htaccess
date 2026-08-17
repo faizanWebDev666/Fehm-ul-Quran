@@ -1,0 +1,10 @@
+<IfModule mod_mime.c>
+  AddType application/pdf .pdf
+</IfModule>
+
+<IfModule mod_headers.c>
+  <FilesMatch "\.pdf$">
+    Header set Accept-Ranges "bytes"
+    Header set Cache-Control "public, max-age=2592000"
+  </FilesMatch>
+</IfModule>

@@ -7,6 +7,69 @@ import islamicArch from '../assets/slider/islamic-arch.jpg';
 import islamicDetail from '../assets/slider/islamic-detail.jpg';
 import { Search, FileText, Check, X } from 'lucide-react';
 
+const SURAH_SEARCH_ALIASES = {
+  36: ['yaseen', 'yasin', 'ya seen', 'ya-sin'],
+};
+
+const normalizeSearchText = (value = '') => (
+  String(value)
+    .normalize('NFKD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[’'`-]/g, ' ')
+    .replace(/[^\p{L}\p{N}]+/gu, ' ')
+    .trim()
+);
+
+const SURAH_SEARCH_INDEX = new Map(
+  SURAHS_DATA.map((surah) => {
+    const searchableText = [
+      surah.nameArabic,
+      surah.nameUrdu,
+      surah.nameEnglish,
+      surah.englishMeaning,
+      ...(SURAH_SEARCH_ALIASES[surah.id] || []),
+    ].filter(Boolean).map(normalizeSearchText).join(' ');
+
+    return [surah.id, {
+      text: searchableText,
+      compactText: searchableText.replace(/\s/g, ''),
+    }];
+  })
+);
+
+const matchesSurahSearch = (surah, rawQuery) => {
+  const query = normalizeSearchText(rawQuery);
+  if (!query) return true;
+  if (surah.id.toString() === rawQuery.trim()) return true;
+
+  const searchIndex = SURAH_SEARCH_INDEX.get(surah.id);
+  const keywords = query.split(' ');
+  const compactQuery = query.replace(/\s/g, '');
+
+  return keywords.every((keyword) => searchIndex.text.includes(keyword))
+    || searchIndex.compactText.includes(compactQuery);
+};
+
+const PREFETCHED_PDF_URLS = new Set();
+
+const prefetchPdf = (pdfUrl) => {
+  if (!pdfUrl || typeof window === 'undefined' || PREFETCHED_PDF_URLS.has(pdfUrl)) return;
+
+  PREFETCHED_PDF_URLS.add(pdfUrl);
+  const warmPdfCache = () => {
+    fetch(pdfUrl, { cache: 'force-cache' }).catch(() => {
+      PREFETCHED_PDF_URLS.delete(pdfUrl);
+    });
+  };
+
+  if ('requestIdleCallback' in window) {
+    window.requestIdleCallback(warmPdfCache, { timeout: 800 });
+  } else {
+    window.setTimeout(warmPdfCache, 100);
+  }
+};
+
 export const SurahPdfList = () => {
   const { completedSurahs, toggleSurahCompletion, getActiveSurahPdfPath, language } = useQuran();
   const t = translations[language] || translations.urdu;
@@ -72,21 +135,24 @@ export const SurahPdfList = () => {
 
   // Search & Filter Logic
   const filteredSurahs = SURAHS_DATA.filter((s) => {
-    const searchLower = search.trim().toLowerCase();
-    const matchesSearch =
-      s.nameArabic.includes(search) ||
-      s.nameUrdu.includes(search) ||
-      s.nameEnglish.toLowerCase().includes(searchLower) ||
-      (s.englishMeaning && s.englishMeaning.toLowerCase().includes(searchLower)) ||
-      s.id.toString() === search.trim();
-
-    if (!matchesSearch) return false;
+    if (!matchesSurahSearch(s, search)) return false;
 
     if (filterType === 'Makki') return s.revelationType === 'Makki';
     if (filterType === 'Madani') return s.revelationType === 'Madani';
     if (filterType === 'completed') return completedSurahs.includes(s.id);
     return true;
   });
+
+  // When a search identifies one Surah, warm its PDF before the user clicks Read PDF.
+  useEffect(() => {
+    if (!search.trim() || filteredSurahs.length !== 1) return undefined;
+
+    const timeout = window.setTimeout(() => {
+      prefetchPdf(getActiveSurahPdfPath(filteredSurahs[0]));
+    }, 250);
+
+    return () => window.clearTimeout(timeout);
+  }, [search, filteredSurahs, getActiveSurahPdfPath]);
 
   return (
     <div
@@ -296,6 +362,9 @@ export const SurahPdfList = () => {
                           href={getActiveSurahPdfPath(surah, partData.part)}
                           target="_blank"
                           rel="noreferrer"
+                          onMouseEnter={() => prefetchPdf(getActiveSurahPdfPath(surah, partData.part))}
+                          onFocus={() => prefetchPdf(getActiveSurahPdfPath(surah, partData.part))}
+                          onTouchStart={() => prefetchPdf(getActiveSurahPdfPath(surah, partData.part))}
                           className="flex items-center justify-center space-x-1.5 rtl:space-x-reverse px-4 sm:px-5 py-2.5 rounded-xl bg-[#1B4332] hover:bg-[#0D3B33] active:bg-[#071F17] text-white text-xs sm:text-sm font-bold shadow-md transition-all border border-[#C9A66B]/30"
                         >
                           <FileText className="w-3.5 h-3.5 text-[#C9A66B]" />
@@ -308,6 +377,9 @@ export const SurahPdfList = () => {
                       href={getActiveSurahPdfPath(surah)}
                       target="_blank"
                       rel="noreferrer"
+                      onMouseEnter={() => prefetchPdf(getActiveSurahPdfPath(surah))}
+                      onFocus={() => prefetchPdf(getActiveSurahPdfPath(surah))}
+                      onTouchStart={() => prefetchPdf(getActiveSurahPdfPath(surah))}
                       className="flex-1 sm:flex-initial flex items-center justify-center space-x-2 rtl:space-x-reverse px-5 py-3 rounded-xl bg-[#1B4332] hover:bg-[#0D3B33] active:bg-[#071F17] text-white text-sm font-bold shadow-md transition-all"
                     >
                       <FileText className="w-4 h-4 text-[#C9A66B]" />
