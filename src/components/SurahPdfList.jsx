@@ -1,11 +1,14 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useQuran } from '../context/QuranContext';
 import { SURAHS_DATA } from '../data/quranData';
 import { translations } from '../utils/translations';
-import { Search, FileText, CheckCircle2, Check, X, Sparkles } from 'lucide-react';
+import quranPattern from '../assets/slider/quran-pattern.jpg';
+import islamicArch from '../assets/slider/islamic-arch.jpg';
+import islamicDetail from '../assets/slider/islamic-detail.jpg';
+import { Search, FileText, Check, X } from 'lucide-react';
 
-export const SurahPdfList = ({ onOpenUploader }) => {
-  const { completedSurahs, toggleSurahCompletion, openPdfReader, language } = useQuran();
+export const SurahPdfList = () => {
+  const { completedSurahs, toggleSurahCompletion, getActiveSurahPdfPath, language } = useQuran();
   const t = translations[language] || translations.urdu;
   const isUrdu = language === 'urdu';
 
@@ -13,6 +16,59 @@ export const SurahPdfList = ({ onOpenUploader }) => {
   const [filterType, setFilterType] = useState('all'); // 'all', 'Makki', 'Madani', 'completed'
 
   const completedCount = completedSurahs.length;
+  // Ayah slider state
+  const [currentSlide, setCurrentSlide] = useState(0);
+  const [isPaused, setIsPaused] = useState(false);
+  const AUTO_ADVANCE_MS = 6000;
+  const SLIDE_BACKGROUNDS = [
+    quranPattern,
+    islamicArch,
+    islamicDetail,
+    quranPattern,
+  ];
+  const AYAH_SLIDES = [
+    {
+      arabic: 'إِيَّاكَ نَعْبُدُ وَإِيَّاكَ نَسْتَعِينُ',
+      translation: isUrdu
+        ? 'ہم تیری ہی عبادت کرتے ہیں اور تجھ ہی سے مدد مانگتے ہیں۔'
+        : 'You alone we worship, and You alone we ask for help.',
+      reference: isUrdu ? 'سورۃ الفاتحہ — آیت 5' : 'Surah Al-Fatihah — Ayah 5',
+    },
+    {
+      arabic: 'لَا يُكَلِّفُ اللَّهُ نَفْسًا إِلَّا وُسْعَهَا',
+      translation: isUrdu
+        ? 'اللہ کسی جان کو اس کی طاقت سے بڑھ کر تکلیف نہیں دیتا۔'
+        : 'Allah does not burden any soul beyond what it can bear.',
+      reference: isUrdu ? 'سورۃ البقرہ — آیت 286' : 'Surah Al-Baqarah — Ayah 286',
+    },
+    {
+      arabic: 'أَلَا بِذِكْرِ اللَّهِ تَطْمَئِنُّ الْقُلُوبُ',
+      translation: isUrdu
+        ? 'خبردار! اللہ کے ذکر ہی سے دلوں کو اطمینان ملتا ہے۔'
+        : 'Surely, in the remembrance of Allah do hearts find comfort.',
+      reference: isUrdu ? 'سورۃ الرعد — آیت 28' : 'Surah Ar-Ra’d — Ayah 28',
+    },
+    {
+      arabic: 'فَإِنَّ مَعَ الْعُسْرِ يُسْرًا',
+      translation: isUrdu
+        ? 'پس یقیناً تنگی کے ساتھ آسانی ہے۔'
+        : 'Indeed, with hardship comes ease.',
+      reference: isUrdu ? 'سورۃ الشرح — آیت 5' : 'Surah Ash-Sharh — Ayah 5',
+    },
+  ];
+
+  const TOTAL_SLIDES = 4;
+
+  const nextSlide = useCallback(() => {
+    setCurrentSlide((prev) => (prev + 1) % TOTAL_SLIDES);
+  }, []);
+
+  // Automatically rotate through the ayat, pausing while the card is hovered.
+  useEffect(() => {
+    if (isPaused) return undefined;
+    const timer = window.setInterval(nextSlide, AUTO_ADVANCE_MS);
+    return () => window.clearInterval(timer);
+  }, [currentSlide, isPaused, nextSlide]);
 
   // Search & Filter Logic
   const filteredSurahs = SURAHS_DATA.filter((s) => {
@@ -37,35 +93,54 @@ export const SurahPdfList = ({ onOpenUploader }) => {
       className={`space-y-6 my-4 sm:my-6 max-w-4xl mx-auto ${isUrdu ? 'font-urdu' : 'font-sans'}`}
       dir={isUrdu ? 'rtl' : 'ltr'}
     >
-      
-      {/* Top Mobile Friendly Banner */}
-      <div className="bg-gradient-to-br from-[#1B4332] via-[#0D3B33] to-[#0A2923] text-white p-5 sm:p-7 rounded-3xl border-2 border-[#C9A66B]/40 shadow-xl space-y-3">
-        <div className="flex items-center justify-between">
-          <span className="text-xs px-3 py-1 rounded-full bg-[#C9A66B]/20 text-[#C9A66B] font-bold border border-[#C9A66B]/30">
-            {t.bannerBadge}
-          </span>
-          <span className="text-xs text-[#C9A66B] font-mono font-bold">
-            {completedCount} / 114 {t.completed}
-          </span>
-        </div>
 
-        <h2 className="text-2xl sm:text-3xl font-bold font-serif-heading text-[#FAF7F0]">
-          {t.bannerTitle}
-        </h2>
-        <p className="text-xs sm:text-sm text-[#EDEAE0]/80 leading-relaxed">
-          {t.bannerDesc}
-        </p>
+      {/* ====== COMPACT PROFESSIONAL HERO SLIDER ====== */}
+      <div
+        className="relative overflow-hidden rounded-2xl sm:rounded-3xl border border-[#C9A66B]/35 shadow-lg select-none"
+        onMouseEnter={() => setIsPaused(true)}
+        onMouseLeave={() => setIsPaused(false)}
+      >
+        {/* Online Islamic artwork, darkened so the slide content stays readable. */}
+        <div
+          className="absolute inset-0 bg-center bg-cover transition-[background-image] duration-700"
+          style={{
+            backgroundImage: `linear-gradient(110deg, rgba(7, 42, 34, 0.84), rgba(11, 55, 45, 0.66), rgba(4, 27, 23, 0.76)), url(${SLIDE_BACKGROUNDS[currentSlide]})`,
+          }}
+        />
+        <div className="absolute inset-0 opacity-30 bg-[radial-gradient(#C9A66B_0.7px,transparent_0.7px)] [background-size:16px_16px] pointer-events-none" />
 
-        {/* Progress Bar */}
-        <div className="pt-2">
-          <div className="h-2.5 w-full bg-black/40 rounded-full overflow-hidden p-0.5 border border-[#C9A66B]/30">
+        {/* Slider Track */}
+        <div
+          className="slider-track relative"
+          style={{ transform: `translateX(-${currentSlide * 100}%)` }}
+        >
+
+          {AYAH_SLIDES.map((ayah) => (
             <div
-              className="h-full bg-gradient-to-r from-[#C9A66B] to-[#B0693F] rounded-full transition-all duration-500"
-              style={{ width: `${Math.max(Math.round((completedCount / 114) * 100), 2)}%` }}
-            />
-          </div>
+              key={ayah.reference}
+              className="min-w-full h-[195px] sm:h-[220px] px-10 py-5 sm:px-16 sm:py-6 text-white flex items-center justify-center"
+            >
+              <article className="w-full max-w-3xl text-center">
+                <p className="text-[10px] sm:text-xs font-semibold tracking-wide text-[#E7C98F] mb-2">
+                  {ayah.reference}
+                </p>
+                <div className="mx-auto mb-3 h-px w-16 bg-[#C9A66B]/60" />
+                <p className="font-quran text-2xl leading-[2] sm:text-3xl md:text-4xl text-[#FFFDF8]" dir="rtl">
+                  {ayah.arabic}
+                </p>
+                <p className={`mt-5 sm:mt-6 text-sm sm:text-base leading-relaxed text-[#F3EEE3] ${isUrdu ? 'font-urdu' : ''}`}>
+                  {ayah.translation}
+                </p>
+              </article>
+            </div>
+          ))}
+
+          {/* Ayah-only slider content is rendered above. */}
         </div>
+        {/* END Slider Track */}
+
       </div>
+      {/* ====== END COMPACT PROFESSIONAL SLIDER ====== */}
 
       {/* Search Input & Quick Filters */}
       <div className="space-y-3">
@@ -216,24 +291,28 @@ export const SurahPdfList = ({ onOpenUploader }) => {
                   {surah.hasParts && surah.parts ? (
                     <div className="flex flex-col sm:flex-row items-stretch gap-1.5 flex-1 sm:flex-initial">
                       {surah.parts.map((partData) => (
-                        <button
+                        <a
                           key={partData.part}
-                          onClick={() => openPdfReader(surah.id, partData.part)}
+                          href={getActiveSurahPdfPath(surah, partData.part)}
+                          target="_blank"
+                          rel="noreferrer"
                           className="flex items-center justify-center space-x-1.5 rtl:space-x-reverse px-4 sm:px-5 py-2.5 rounded-xl bg-[#1B4332] hover:bg-[#0D3B33] active:bg-[#071F17] text-white text-xs sm:text-sm font-bold shadow-md transition-all border border-[#C9A66B]/30"
                         >
                           <FileText className="w-3.5 h-3.5 text-[#C9A66B]" />
                           <span>{isUrdu ? partData.labelUrdu : partData.labelEnglish}</span>
-                        </button>
+                        </a>
                       ))}
                     </div>
                   ) : (
-                    <button
-                      onClick={() => openPdfReader(surah.id)}
+                    <a
+                      href={getActiveSurahPdfPath(surah)}
+                      target="_blank"
+                      rel="noreferrer"
                       className="flex-1 sm:flex-initial flex items-center justify-center space-x-2 rtl:space-x-reverse px-5 py-3 rounded-xl bg-[#1B4332] hover:bg-[#0D3B33] active:bg-[#071F17] text-white text-sm font-bold shadow-md transition-all"
                     >
                       <FileText className="w-4 h-4 text-[#C9A66B]" />
                       <span>{t.readPdf}</span>
-                    </button>
+                    </a>
                   )}
 
                   {/* Completion Toggle Button */}
