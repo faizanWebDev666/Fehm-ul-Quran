@@ -70,18 +70,26 @@ const prefetchPdf = (pdfUrl) => {
   }
 };
 
-const openPdfWithPreloader = (event, pdfUrl, isUrdu) => {
+const openPdfWithPreloader = (event, pdfUrl, isUrdu, showMobilePreloader) => {
   event.preventDefault();
   prefetchPdf(pdfUrl);
+
+  const heading = isUrdu ? 'پی ڈی ایف کھولی جا رہی ہے' : 'Opening your PDF';
+  const message = isUrdu ? 'براہِ کرم چند لمحے انتظار کریں…' : 'Please wait a moment…';
+
+  // Mobile browsers often suppress or replace a blank tab before its content can paint.
+  // Keep the loading state in the current tab, then open the PDF directly in that tab.
+  if (window.matchMedia('(max-width: 767px)').matches) {
+    showMobilePreloader({ heading, message });
+    window.setTimeout(() => window.location.assign(pdfUrl), 450);
+    return;
+  }
 
   const pdfWindow = window.open('', '_blank');
   if (!pdfWindow) {
     window.open(pdfUrl, '_blank', 'noopener,noreferrer');
     return;
   }
-
-  const heading = isUrdu ? 'پی ڈی ایف کھولی جا رہی ہے' : 'Opening your PDF';
-  const message = isUrdu ? 'براہِ کرم چند لمحے انتظار کریں…' : 'Please wait a moment…';
 
   pdfWindow.opener = null;
   pdfWindow.document.write(`<!doctype html>
@@ -116,6 +124,7 @@ export const SurahPdfList = () => {
 
   const [search, setSearch] = useState('');
   const [filterType, setFilterType] = useState('all'); // 'all', 'Makki', 'Madani', 'completed'
+  const [mobilePdfPreloader, setMobilePdfPreloader] = useState(null);
 
   const completedCount = completedSurahs.length;
   // Ayah slider state
@@ -198,6 +207,16 @@ export const SurahPdfList = () => {
       className={`space-y-6 my-4 sm:my-6 max-w-4xl mx-auto ${isUrdu ? 'font-urdu' : 'font-sans'}`}
       dir={isUrdu ? 'rtl' : 'ltr'}
     >
+
+      {mobilePdfPreloader && (
+        <div className="fixed inset-0 z-[100] grid place-items-center bg-[#071F17]/95 px-6 text-center text-[#FAF7F0] backdrop-blur-sm" role="status" aria-live="polite">
+          <div className="w-full max-w-xs rounded-3xl border border-[#C9A66B]/30 bg-[#103B30] px-6 py-8 shadow-2xl">
+            <div className="mx-auto mb-5 h-12 w-12 animate-spin rounded-full border-4 border-[#C9A66B]/25 border-t-[#C9A66B]" />
+            <h2 className="text-lg font-bold text-[#F4E3BD]">{mobilePdfPreloader.heading}</h2>
+            <p className="mt-2 text-sm leading-relaxed text-[#EDEAE0]/75">{mobilePdfPreloader.message}</p>
+          </div>
+        </div>
+      )}
 
       {/* ====== COMPACT PROFESSIONAL HERO SLIDER ====== */}
       <div
@@ -404,7 +423,7 @@ export const SurahPdfList = () => {
                           onMouseEnter={() => prefetchPdf(getActiveSurahPdfPath(surah, partData.part))}
                           onFocus={() => prefetchPdf(getActiveSurahPdfPath(surah, partData.part))}
                           onTouchStart={() => prefetchPdf(getActiveSurahPdfPath(surah, partData.part))}
-                          onClick={(event) => openPdfWithPreloader(event, getActiveSurahPdfPath(surah, partData.part), isUrdu)}
+                          onClick={(event) => openPdfWithPreloader(event, getActiveSurahPdfPath(surah, partData.part), isUrdu, setMobilePdfPreloader)}
                           className="flex items-center justify-center space-x-1.5 rtl:space-x-reverse px-4 sm:px-5 py-2.5 rounded-xl bg-[#1B4332] hover:bg-[#0D3B33] active:bg-[#071F17] text-white text-xs sm:text-sm font-bold shadow-md transition-all border border-[#C9A66B]/30"
                         >
                           <FileText className="w-3.5 h-3.5 text-[#C9A66B]" />
@@ -420,7 +439,7 @@ export const SurahPdfList = () => {
                       onMouseEnter={() => prefetchPdf(getActiveSurahPdfPath(surah))}
                       onFocus={() => prefetchPdf(getActiveSurahPdfPath(surah))}
                       onTouchStart={() => prefetchPdf(getActiveSurahPdfPath(surah))}
-                      onClick={(event) => openPdfWithPreloader(event, getActiveSurahPdfPath(surah), isUrdu)}
+                      onClick={(event) => openPdfWithPreloader(event, getActiveSurahPdfPath(surah), isUrdu, setMobilePdfPreloader)}
                       className="flex-1 sm:flex-initial flex items-center justify-center space-x-2 rtl:space-x-reverse px-5 py-3 rounded-xl bg-[#1B4332] hover:bg-[#0D3B33] active:bg-[#071F17] text-white text-sm font-bold shadow-md transition-all"
                     >
                       <FileText className="w-4 h-4 text-[#C9A66B]" />
