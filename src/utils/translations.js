@@ -93,7 +93,7 @@ export const translations = {
     bannerDesc: "Click on any Surah to instantly open PDF and read Maulana Maududi's Urdu translation.",
     
     // Search & Filters
-    searchPlaceholder: "Search Surah by name or number (e.g. 36, Al-Fatihah, Ya-Sin)...",
+    searchPlaceholder: "Search Surah ...",
     allSurahs: "All Surahs",
     makkiSurahs: "Makki Surahs",
     madaniSurahs: "Madani Surahs",
