@@ -70,6 +70,45 @@ const prefetchPdf = (pdfUrl) => {
   }
 };
 
+const openPdfWithPreloader = (event, pdfUrl, isUrdu) => {
+  event.preventDefault();
+  prefetchPdf(pdfUrl);
+
+  const pdfWindow = window.open('', '_blank');
+  if (!pdfWindow) {
+    window.open(pdfUrl, '_blank', 'noopener,noreferrer');
+    return;
+  }
+
+  const heading = isUrdu ? 'پی ڈی ایف کھولی جا رہی ہے' : 'Opening your PDF';
+  const message = isUrdu ? 'براہِ کرم چند لمحے انتظار کریں…' : 'Please wait a moment…';
+
+  pdfWindow.opener = null;
+  pdfWindow.document.write(`<!doctype html>
+    <html lang="${isUrdu ? 'ur' : 'en'}" dir="${isUrdu ? 'rtl' : 'ltr'}">
+      <head>
+        <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <title>${heading}</title>
+        <style>
+          * { box-sizing: border-box; }
+          body { margin: 0; min-height: 100vh; display: grid; place-items: center; background: radial-gradient(circle at top, #195543, #071f17 75%); color: #faf7f0; font-family: system-ui, sans-serif; }
+          main { text-align: center; padding: 32px; }
+          .spinner { width: 46px; height: 46px; margin: 0 auto 20px; border: 4px solid rgba(201, 166, 107, .25); border-top-color: #c9a66b; border-radius: 50%; animation: spin .8s linear infinite; }
+          h1 { margin: 0; font-size: 1.2rem; color: #f4e3bd; }
+          p { margin: 10px 0 0; color: rgba(250, 247, 240, .72); font-size: .95rem; }
+          @keyframes spin { to { transform: rotate(360deg); } }
+        </style>
+      </head>
+      <body><main><div class="spinner"></div><h1>${heading}</h1><p>${message}</p></main></body>
+    </html>`);
+  pdfWindow.document.close();
+
+  window.setTimeout(() => {
+    if (!pdfWindow.closed) pdfWindow.location.replace(pdfUrl);
+  }, 350);
+};
+
 export const SurahPdfList = () => {
   const { completedSurahs, toggleSurahCompletion, getActiveSurahPdfPath, language } = useQuran();
   const t = translations[language] || translations.urdu;
@@ -365,6 +404,7 @@ export const SurahPdfList = () => {
                           onMouseEnter={() => prefetchPdf(getActiveSurahPdfPath(surah, partData.part))}
                           onFocus={() => prefetchPdf(getActiveSurahPdfPath(surah, partData.part))}
                           onTouchStart={() => prefetchPdf(getActiveSurahPdfPath(surah, partData.part))}
+                          onClick={(event) => openPdfWithPreloader(event, getActiveSurahPdfPath(surah, partData.part), isUrdu)}
                           className="flex items-center justify-center space-x-1.5 rtl:space-x-reverse px-4 sm:px-5 py-2.5 rounded-xl bg-[#1B4332] hover:bg-[#0D3B33] active:bg-[#071F17] text-white text-xs sm:text-sm font-bold shadow-md transition-all border border-[#C9A66B]/30"
                         >
                           <FileText className="w-3.5 h-3.5 text-[#C9A66B]" />
@@ -380,6 +420,7 @@ export const SurahPdfList = () => {
                       onMouseEnter={() => prefetchPdf(getActiveSurahPdfPath(surah))}
                       onFocus={() => prefetchPdf(getActiveSurahPdfPath(surah))}
                       onTouchStart={() => prefetchPdf(getActiveSurahPdfPath(surah))}
+                      onClick={(event) => openPdfWithPreloader(event, getActiveSurahPdfPath(surah), isUrdu)}
                       className="flex-1 sm:flex-initial flex items-center justify-center space-x-2 rtl:space-x-reverse px-5 py-3 rounded-xl bg-[#1B4332] hover:bg-[#0D3B33] active:bg-[#071F17] text-white text-sm font-bold shadow-md transition-all"
                     >
                       <FileText className="w-4 h-4 text-[#C9A66B]" />
