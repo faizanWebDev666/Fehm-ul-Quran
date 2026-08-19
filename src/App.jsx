@@ -5,6 +5,7 @@ import { Header } from './components/Header';
 import { SurahPdfList } from './components/SurahPdfList';
 import { SurahPdfReader } from './components/SurahPdfReader';
 import { PdfUploaderModal } from './components/PdfUploaderModal';
+import { Azkar } from './components/Azkar';
 import { translations } from './utils/translations';
 import { ArrowUp, ShieldCheck } from 'lucide-react';
 
@@ -58,6 +59,7 @@ const AppContent = () => {
             path="/read/:id/part/:part"
             element={<SurahPdfReader onOpenUploader={() => setIsUploaderOpen(true)} />}
           />
+          <Route path="/azkar" element={<Azkar />} />
           <Route
             path="*"
             element={<SurahPdfList onOpenUploader={() => setIsUploaderOpen(true)} />}

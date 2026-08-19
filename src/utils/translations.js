@@ -9,6 +9,16 @@ export const translations = {
     pdfUploader: "PDF اپلوڈر",
     lightMode: "لائٹ موڈ",
     darkMode: "ڈارک موڈ",
+    azkarNav: "اذکار",
+    azkarBadge: "روزانہ کی عبادت",
+    azkarTitle: "صبح و شام کے اذکار",
+    azkarDescription: "اللہ کے ذکر سے اپنے دن کا آغاز اور اختتام برکت کے ساتھ کریں۔",
+    morningAzkar: "صبح کے اذکار",
+    eveningAzkar: "شام کے اذکار",
+    completedAzkar: "اذکار مکمل",
+    resetAzkar: "دوبارہ شروع",
+    tapToCount: "پڑھ کر شمار کریں",
+    azkarNote: "اللہ تعالیٰ ہمیں اپنے ذکر کی توفیق دے",
     
     // Header & Banner
     bannerBadge: "سورت وار پی ڈی ایف مطالعہ",
@@ -86,6 +96,16 @@ export const translations = {
     pdfUploader: "PDF Uploader",
     lightMode: "Light Mode",
     darkMode: "Dark Mode",
+    azkarNav: "Azkar",
+    azkarBadge: "Daily Worship",
+    azkarTitle: "Morning & Evening Azkar",
+    azkarDescription: "Begin and end your day with the remembrance of Allah.",
+    morningAzkar: "Morning",
+    eveningAzkar: "Evening",
+    completedAzkar: "completed",
+    resetAzkar: "Reset",
+    tapToCount: "Tap after reciting",
+    azkarNote: "May Allah grant us the ability to remember Him",
     
     // Header & Banner
     bannerBadge: "Surah PDF Study",

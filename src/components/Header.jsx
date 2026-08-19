@@ -1,7 +1,7 @@
 import React from 'react';
 import { useQuran } from '../context/QuranContext';
 import { translations } from '../utils/translations';
-import { Sun, Moon, Upload, Languages } from 'lucide-react';
+import { Sun, Moon, Upload, Languages, Heart } from 'lucide-react';
 
 export const Header = ({ onOpenUploader }) => {
   const {
@@ -11,6 +11,7 @@ export const Header = ({ onOpenUploader }) => {
     toggleLanguage,
     completedSurahs,
     closePdfReader,
+    openAzkar,
   } = useQuran();
   const t = translations[language] || translations.urdu;
   const completedCount = completedSurahs.length;
@@ -37,6 +38,15 @@ export const Header = ({ onOpenUploader }) => {
 
         {/* Right Tools */}
         <div className="flex items-center space-x-2 rtl:space-x-reverse">
+          <button
+            onClick={openAzkar}
+            className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-white dark:bg-[#161D17] hover:border-[#C9A66B] border border-[#C9A66B]/30 text-xs font-bold text-[#1B4332] dark:text-[#C9A66B] transition-all shadow-sm"
+            title={t.azkarTitle}
+          >
+            <Heart className="w-4 h-4 text-[#B0693F] dark:text-[#C9A66B]" />
+            <span className="hidden sm:inline font-urdu">{t.azkarNav}</span>
+          </button>
+
           {/* Language Toggle Button */}
           <button
             onClick={toggleLanguage}

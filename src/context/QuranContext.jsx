@@ -158,6 +158,13 @@ export const QuranProvider = ({ children }) => {
     navigate('/');
   };
 
+  const openAzkar = () => {
+    setActiveSurahId(null);
+    setActiveSurahPart(null);
+    navigate('/azkar');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
   const setActivePart = (part) => {
     if (!activeSurahId) return;
     setActiveSurahPart(part);
@@ -220,6 +227,7 @@ export const QuranProvider = ({ children }) => {
         openSurahPdf,
         openSurahText,
         closePdfReader,
+        openAzkar,
         getSurahById,
         getActiveSurahPdfPath,
       }}
