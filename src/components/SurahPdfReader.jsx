@@ -66,6 +66,10 @@ export const SurahPdfReader = ({ onOpenUploader }) => {
   const [pdfError, setPdfError] = useState(false);
   // Grace-period state: show elegant skeleton while native object engine loads
   const [nativeLoading, setNativeLoading] = useState(true);
+  // A compact PDF.js render of page 1 is shown while the native PDF viewer loads.
+  // This gives readers useful content instead of an empty loading screen.
+  const [previewReady, setPreviewReady] = useState(false);
+  const [pdfViewerReady, setPdfViewerReady] = useState(false);
   // MOBILE-FIRST: Default to native browser object engine on mobile screens
   // Canvas mode (PDF.js) works well on desktop but is unreliable on mobile browsers
   const [viewEngine, setViewEngine] = useState(isMobileScreen ? 'object' : 'canvas');
@@ -75,6 +79,7 @@ export const SurahPdfReader = ({ onOpenUploader }) => {
 
   // Canvas & PDF References
   const canvasRef = useRef(null);
+  const previewCanvasRef = useRef(null);
   const containerRef = useRef(null);
   const pdfDocRef = useRef(null);
   const renderTaskRef = useRef(null);
@@ -86,12 +91,70 @@ export const SurahPdfReader = ({ onOpenUploader }) => {
   // Render trigger (increment to force canvas re-render on resize)
   const [renderTick, setRenderTick] = useState(0);
 
+  // Render a low-resolution first-page preview in parallel with the full native viewer.
+  // disableAutoFetch lets PDF.js request only the document data needed for page one when
+  // the host supports byte ranges; the full PDF continues to load in the iframe.
+  useEffect(() => {
+    if (viewEngine !== 'object') {
+      setPreviewReady(false);
+      return undefined;
+    }
+
+    let cancelled = false;
+    let previewDocument = null;
+    const loadingTask = pdfjsLib.getDocument({
+      url: pdfPath,
+      disableAutoFetch: true,
+      rangeChunkSize: 256 * 1024,
+    });
+
+    setPreviewReady(false);
+    setPdfViewerReady(false);
+
+    loadingTask.promise
+      .then(async (document) => {
+        previewDocument = document;
+        const page = await document.getPage(1);
+        const canvas = previewCanvasRef.current;
+        if (!canvas || cancelled) return;
+
+        const viewport = page.getViewport({ scale: 1.15 });
+        const pixelRatio = Math.min(window.devicePixelRatio || 1, 1.5);
+        canvas.width = Math.floor(viewport.width * pixelRatio);
+        canvas.height = Math.floor(viewport.height * pixelRatio);
+        canvas.style.width = `${Math.floor(viewport.width)}px`;
+        canvas.style.height = `${Math.floor(viewport.height)}px`;
+
+        const context = canvas.getContext('2d', { alpha: false });
+        await page.render({
+          canvasContext: context,
+          viewport,
+          transform: pixelRatio === 1 ? null : [pixelRatio, 0, 0, pixelRatio, 0, 0],
+        }).promise;
+
+        if (!cancelled) {
+          setPreviewReady(true);
+          setNativeLoading(false);
+        }
+      })
+      .catch(() => {
+        // The standard loader remains available if a server/browser cannot render a preview.
+      });
+
+    return () => {
+      cancelled = true;
+      loadingTask.destroy();
+      previewDocument?.cleanup();
+    };
+  }, [pdfPath, viewEngine]);
+
   // Load PDF Document when Surah changes
   useEffect(() => {
     let isMounted = true;
     setLoading(true);
     setLoadingProgress(15);
     setPdfError(false);
+    setPdfViewerReady(false);
     setCurrentPage(1);
     setTotalPages(1);
     setStatusText(t.loadingPdf);
@@ -157,6 +220,7 @@ export const SurahPdfReader = ({ onOpenUploader }) => {
         if (isMounted) {
           setLoadingProgress(96);
           setNativeLoading(false);
+          setPdfViewerReady(true);
           setTimeout(() => {
             if (isMounted) setLoadingProgress(100);
           }, 400);
@@ -636,6 +700,22 @@ export const SurahPdfReader = ({ onOpenUploader }) => {
                 </div>
               )}
 
+              {!pdfViewerReady && (
+                <div className={`absolute inset-0 z-20 flex items-start justify-center overflow-hidden bg-[#0A0E0B] p-2 sm:p-4 transition-opacity duration-500 ${previewReady ? 'opacity-100' : 'pointer-events-none opacity-0'}`}>
+                  <div className="relative h-full w-full overflow-auto rounded-xl bg-[#EDEAE0] shadow-2xl">
+                    <canvas
+                      ref={previewCanvasRef}
+                      className="mx-auto block min-h-full max-w-none bg-white"
+                      aria-label={isUrdu ? 'پہلے صفحے کا پیش منظر' : 'First page preview'}
+                    />
+                    <div className="sticky bottom-3 left-0 right-0 mx-auto flex w-fit items-center gap-2 rounded-full border border-[#C9A66B]/40 bg-[#0D3B33]/95 px-3 py-1.5 text-[11px] font-bold text-[#FAF7F0] shadow-lg">
+                      <Layers className="h-3.5 w-3.5 text-[#C9A66B]" />
+                      <span>{isUrdu ? 'پہلا صفحہ تیار ہے — مکمل دستاویز پس منظر میں لوڈ ہو رہی ہے' : 'First page ready — loading the full document in the background'}</span>
+                    </div>
+                  </div>
+                </div>
+              )}
+
               <iframe
                 src={`${pdfPath}#page=${currentPage}&navpanes=0&scrollbar=0&toolbar=1&view=FitBH`}
                 title={`Surah ${currentSurah.nameEnglish} PDF`}
@@ -643,14 +723,16 @@ export const SurahPdfReader = ({ onOpenUploader }) => {
                 referrerPolicy="no-referrer"
                 allow="fullscreen"
                 className={`pdf-viewer-iframe w-full h-full min-h-[440px] flex-1 rounded-2xl bg-white shadow-inner border border-[#C9A66B]/25 transition-opacity duration-500 ${
-                  nativeLoading ? 'opacity-0' : 'opacity-100'
+                  pdfViewerReady ? 'opacity-100' : 'opacity-0'
                 }`}
                 onLoad={() => {
                   setLoadingProgress(100);
                   setNativeLoading(false);
+                  setPdfViewerReady(true);
                 }}
                 onError={() => {
                   setNativeLoading(false);
+                  setPdfViewerReady(true);
                 }}
               >
                 <object
